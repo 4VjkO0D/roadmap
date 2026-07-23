@@ -71,14 +71,75 @@
   }
 
   #header-title {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: -0.3px;
     color: var(--text);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    cursor: pointer;
+    position: relative;
   }
+  #header-title i { font-size: 14px; }
+  .header-arrow { font-size: 10px; color: var(--text-muted); transition: transform var(--transition); }
+  .header-arrow.open { transform: rotate(180deg); }
+
+  #roadmap-switcher {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    min-width: 200px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 50;
+    display: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  #roadmap-switcher.open { display: block; }
+  .switcher-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background var(--transition);
+    border-bottom: 1px solid var(--border);
+  }
+  .switcher-item:last-child { border-bottom: none; }
+  .switcher-item:hover { background: var(--surface2); }
+  .switcher-item.active { color: var(--accent2); background: rgba(108, 99, 255, 0.08); }
+  .switcher-item .switcher-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .switcher-item .switcher-check {
+    color: var(--green);
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+  .switcher-item .switcher-delete {
+    width: 24px; height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-left: 6px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .switcher-item .switcher-delete:hover { color: var(--red); background: rgba(248,113,113,0.1); }
 
   #ai-status {
     display: flex;
@@ -139,6 +200,9 @@
   #content::-webkit-scrollbar { width: 3px; }
   #content::-webkit-scrollbar-track { background: transparent; }
   #content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  #roadmap-switcher::-webkit-scrollbar { width: 3px; }
+  #roadmap-switcher::-webkit-scrollbar-track { background: transparent; }
+  #roadmap-switcher::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
   /* ── Misc ── */
   .fade-in { animation: fadeIn 0.2s ease; }
@@ -350,14 +414,6 @@
     border-color: var(--accent);
     background: rgba(108, 99, 255, 0.08);
   }
-  .rm-node.locked {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .rm-node.locked:hover {
-    border-color: var(--border);
-    transform: none;
-  }
   .rm-node.generating {
     border-color: var(--amber);
     animation: pulseBorder 1.5s ease infinite;
@@ -418,10 +474,6 @@
   .rm-node-badge.done {
     background: rgba(52, 211, 153, 0.15);
     color: var(--green);
-  }
-  .rm-node-badge.locked {
-    background: var(--surface2);
-    color: var(--text-muted);
   }
 
   .rm-connector {
@@ -680,6 +732,41 @@
     color: var(--green);
     font-weight: 700;
   }
+
+  /* ── Existing roadmaps list on setup view ── */
+  .existing-list {
+    margin-bottom: 16px;
+  }
+  .existing-list .existing-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+  }
+  .existing-list .existing-item:hover {
+    border-color: var(--accent2);
+    background: var(--surface2);
+  }
+  .existing-list .existing-item .ei-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .existing-list .existing-item .ei-progress {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .existing-list .existing-item .ei-arrow {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
 </style>
 </head>
 <body>
@@ -687,7 +774,12 @@
 <div id="app">
   <!-- Header -->
   <header id="header">
-    <div id="header-title"><i class="fa-solid fa-map"></i> Study Roadmap</div>
+    <div id="header-title">
+      <i class="fa-solid fa-map"></i>
+      <span id="header-title-text">Study Roadmap</span>
+      <span class="header-arrow" id="header-arrow"><i class="fa-solid fa-chevron-down"></i></span>
+      <div id="roadmap-switcher"></div>
+    </div>
     <div id="ai-status">
       <button id="ai-config-btn" title="AI Settings"><i class="fa-solid fa-gear"></i></button>
     </div>
@@ -702,6 +794,15 @@
         <span class="hero-icon">🧠</span>
         <h1>Build Your Study Roadmap</h1>
         <p>Tell me what you're studying — from a course syllabus, old exams, or just a topic — and I'll create a bottom-up concept map with AI-powered lessons.</p>
+      </div>
+
+      <div id="existing-roadmaps-container" style="display:none;">
+        <div class="section-card">
+          <div class="section-header"><span class="section-title">📂 Your Roadmaps</span></div>
+          <div style="padding:16px;">
+            <div class="existing-list" id="existing-roadmaps-list"></div>
+          </div>
+        </div>
       </div>
 
       <div class="section-card">
@@ -822,13 +923,39 @@ const proxyUrlInput= document.getElementById('proxy-url-input');
 const proxyTokenInput= document.getElementById('proxy-token-input');
 const saveApiBtn   = document.getElementById('save-api-key');
 const proxyStatus  = document.getElementById('proxy-config-status');
+const headerTitleText = document.getElementById('header-title-text');
+const headerArrow  = document.getElementById('header-arrow');
+const roadmapSwitcher = document.getElementById('roadmap-switcher');
+const existingRoadmapsContainer = document.getElementById('existing-roadmaps-container');
+const existingRoadmapsList = document.getElementById('existing-roadmaps-list');
 
 // ── State ──
-let state = { subject: '', nodes: [], completed: [] };
+let state = { roadmaps: [], activeRoadmapId: null };
 let currentLessonNodeId = null;
 
+function getActiveRoadmap() {
+  return state.roadmaps.find(r => r.id === state.activeRoadmapId) || null;
+}
+
 function loadState() {
-  state = LS.get('rm_state', { subject: '', nodes: [], completed: [] });
+  const raw = LS.get('rm_state', null);
+  if (raw && raw.roadmaps && Array.isArray(raw.roadmaps)) {
+    state = raw;
+  } else if (raw && raw.nodes && Array.isArray(raw.nodes)) {
+    // Migrate from old single-roadmap format
+    const newId = uid();
+    state = {
+      roadmaps: [{
+        id: newId,
+        subject: raw.subject || 'My Subject',
+        nodes: raw.nodes || [],
+        completed: raw.completed || []
+      }],
+      activeRoadmapId: newId
+    };
+  } else {
+    state = { roadmaps: [], activeRoadmapId: null };
+  }
 }
 function saveState() {
   LS.set('rm_state', state);
@@ -845,7 +972,8 @@ if (savedToken) proxyTokenInput.value = savedToken;
 updateAiStatus();
 
 // If there's a saved roadmap, show graph
-if (state.nodes && state.nodes.length > 0) {
+const active = getActiveRoadmap();
+if (active && active.nodes && active.nodes.length > 0) {
   showGraphView();
 } else {
   showSetupView();
@@ -855,13 +983,131 @@ if (state.nodes && state.nodes.length > 0) {
 function showSetupView() {
   setupView.style.display = 'block';
   graphView.style.display = 'none';
+  renderExistingRoadmaps();
 }
 
 function showGraphView() {
   setupView.style.display = 'none';
   graphView.style.display = 'flex';
   renderGraph();
+  updateRoadmapSwitcher();
 }
+
+// ── Existing roadmaps list (shown in setup view) ──
+function renderExistingRoadmaps() {
+  if (state.roadmaps.length === 0) {
+    existingRoadmapsContainer.style.display = 'none';
+    return;
+  }
+  existingRoadmapsContainer.style.display = 'block';
+  let html = '';
+  state.roadmaps.forEach(rm => {
+    const total = rm.nodes.length;
+    const done = rm.completed.length;
+    html += `
+      <div class="existing-item" data-rm-id="${rm.id}">
+        <div>
+          <div class="ei-name">📚 ${escHtml(rm.subject)}</div>
+          <div class="ei-progress">${done}/${total} lessons completed</div>
+        </div>
+        <div class="ei-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+      </div>`;
+  });
+  existingRoadmapsList.innerHTML = html;
+  existingRoadmapsList.querySelectorAll('.existing-item').forEach(el => {
+    el.addEventListener('click', () => {
+      state.activeRoadmapId = el.dataset.rmId;
+      saveState();
+      showGraphView();
+    });
+  });
+}
+
+// ── Roadmap Switcher ──
+function updateRoadmapSwitcher() {
+  const active = getActiveRoadmap();
+  if (active) {
+    headerTitleText.textContent = active.subject;
+  } else {
+    headerTitleText.textContent = 'Study Roadmap';
+  }
+
+  let html = '';
+  state.roadmaps.forEach(rm => {
+    const isActive = rm.id === state.activeRoadmapId;
+    html += `
+      <div class="switcher-item ${isActive ? 'active' : ''}" data-rm-id="${rm.id}">
+        <span class="switcher-name">📚 ${escHtml(rm.subject)}</span>
+        ${isActive ? '<span class="switcher-check"><i class="fa-solid fa-check"></i></span>' : ''}
+        <button class="switcher-delete" data-rm-id="${rm.id}" title="Delete roadmap"><i class="fa-solid fa-trash-can"></i></button>
+      </div>`;
+  });
+  roadmapSwitcher.innerHTML = html;
+
+  // Click to switch
+  roadmapSwitcher.querySelectorAll('.switcher-item').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.switcher-delete')) return;
+      state.activeRoadmapId = el.dataset.rmId;
+      saveState();
+      closeRoadmapSwitcher();
+      showGraphView();
+    });
+  });
+
+  // Delete buttons
+  roadmapSwitcher.querySelectorAll('.switcher-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rmId = btn.dataset.rmId;
+      if (state.roadmaps.length <= 1) {
+        alert('Cannot delete the last roadmap.');
+        return;
+      }
+      if (!confirm('Delete this roadmap and all its lessons?')) return;
+      state.roadmaps = state.roadmaps.filter(r => r.id !== rmId);
+      // Remove cached lessons for this roadmap
+      const deletedRm = state.roadmaps.find(r => r.id === rmId);
+      if (deletedRm) {
+        deletedRm.nodes.forEach(n => {
+          try { localStorage.removeItem('rm_lesson_' + n.id); } catch {}
+        });
+      }
+      if (state.activeRoadmapId === rmId) {
+        state.activeRoadmapId = state.roadmaps[0].id;
+      }
+      saveState();
+      closeRoadmapSwitcher();
+      const active = getActiveRoadmap();
+      if (active && active.nodes.length > 0) {
+        showGraphView();
+      } else {
+        showSetupView();
+      }
+    });
+  });
+}
+
+function toggleRoadmapSwitcher() {
+  const isOpen = roadmapSwitcher.classList.toggle('open');
+  headerArrow.classList.toggle('open', isOpen);
+  if (isOpen) updateRoadmapSwitcher();
+}
+
+function closeRoadmapSwitcher() {
+  roadmapSwitcher.classList.remove('open');
+  headerArrow.classList.remove('open');
+}
+
+// Close switcher when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#header-title') && !e.target.closest('#roadmap-switcher')) {
+    closeRoadmapSwitcher();
+  }
+});
+
+headerTitleText.addEventListener('click', toggleRoadmapSwitcher);
+headerArrow.addEventListener('click', toggleRoadmapSwitcher);
 
 // ── Suggestion pills ──
 document.querySelectorAll('#roadmap-suggestions .suggestion-pill').forEach(pill => {
@@ -958,10 +1204,17 @@ Make the roadmap complete and accurate for learning this topic from scratch.`;
       throw new Error('AI returned no nodes');
     }
 
-    state.subject = roadmapData.subject || subject.slice(0, 40);
-    state.nodes = roadmapData.nodes;
-    state.completed = [];
+    // Add as a new roadmap
+    const newRoadmap = {
+      id: uid(),
+      subject: roadmapData.subject || subject.slice(0, 40),
+      nodes: roadmapData.nodes,
+      completed: []
+    };
+    state.roadmaps.push(newRoadmap);
+    state.activeRoadmapId = newRoadmap.id;
     saveState();
+    updateRoadmapSwitcher();
 
     showGraphView();
     inputEl.value = '';
@@ -975,14 +1228,19 @@ Make the roadmap complete and accurate for learning this topic from scratch.`;
 }
 
 // ── New / Regenerate ──
-newBtn.addEventListener('click', showSetupView);
-regenBtn.addEventListener('click', showSetupView);
+newBtn.addEventListener('click', () => {
+  showSetupView();
+});
+regenBtn.addEventListener('click', () => {
+  showSetupView();
+});
 
 // ── Render graph ──
 function renderGraph() {
-  if (!state || !state.nodes) return;
+  const active = getActiveRoadmap();
+  if (!active || !active.nodes) return;
 
-  const { subject, nodes, completed } = state;
+  const { subject, nodes, completed } = active;
   const levels = ['foundational', 'intermediate', 'advanced'];
   const levelLabels = { foundational: '🟣 Basics', intermediate: '🔵 Core Concepts', advanced: '🟡 Advanced Topics' };
   const levelIcons = { foundational: 'fa-solid fa-layer-group', intermediate: 'fa-solid fa-cubes', advanced: 'fa-solid fa-rocket' };
@@ -1014,8 +1272,6 @@ function renderGraph() {
 
     levelNodes.forEach((node, idx) => {
       const isCompleted = completed.includes(node.id);
-      const isLocked = isNodeLocked(node);
-      const prevAllLevels = nodes.slice(0, nodes.indexOf(node));
 
       let statusBadge = '';
       let nodeClass = 'rm-node';
@@ -1025,15 +1281,12 @@ function renderGraph() {
       } else if (getLesson(node.id)) {
         nodeClass += ' active';
         statusBadge = '<span class="rm-node-badge ready">Ready</span>';
-      } else if (isLocked) {
-        nodeClass += ' locked';
-        statusBadge = '<span class="rm-node-badge locked"><i class="fa-solid fa-lock"></i></span>';
       } else {
         statusBadge = '<span class="rm-node-badge ready"><i class="fa-solid fa-play"></i></span>';
       }
 
       html += `
-        <div class="${nodeClass}" data-node-id="${node.id}" data-locked="${isLocked}">
+        <div class="${nodeClass}" data-node-id="${node.id}">
           <div class="rm-node-header">
             <div class="rm-node-icon ${node.level}">
               <i class="fa-solid ${node.level === 'foundational' ? 'fa-book' : node.level === 'intermediate' ? 'fa-brain' : 'fa-graduation-cap'}"></i>
@@ -1057,24 +1310,9 @@ function renderGraph() {
   graphInner.querySelectorAll('.rm-node').forEach(el => {
     el.addEventListener('click', () => {
       const nodeId = el.dataset.nodeId;
-      const locked = el.dataset.locked === 'true';
-      if (locked) return;
       openLesson(nodeId);
     });
   });
-}
-
-function isNodeLocked(node) {
-  if (!state || !state.nodes) return false;
-  const { nodes, completed } = state;
-  const nodeIdx = nodes.indexOf(node);
-  if (nodeIdx <= 0) return false;
-
-  const levelOrder = { foundational: 0, intermediate: 1, advanced: 2 };
-  const prevNodes = nodes.slice(0, nodeIdx);
-  const requiredPrev = prevNodes.filter(n => levelOrder[n.level] <= levelOrder[node.level]);
-
-  return requiredPrev.length > 0 && !requiredPrev.every(n => completed.includes(n.id));
 }
 
 // ── Lesson storage ──
@@ -1087,7 +1325,9 @@ function saveLesson(nodeId, content) {
 
 // ── Open lesson ──
 async function openLesson(nodeId) {
-  const node = state.nodes.find(n => n.id === nodeId);
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const node = active.nodes.find(n => n.id === nodeId);
   if (!node) return;
 
   currentLessonNodeId = nodeId;
@@ -1104,7 +1344,7 @@ async function openLesson(nodeId) {
   }
 
   try {
-    const prompt = `Create a detailed lesson for the concept "${node.name}" in the subject "${state.subject}".
+    const prompt = `Create a detailed lesson for the concept "${node.name}" in the subject "${active.subject}".
 
 Context for this concept: ${node.description}
 Level: ${node.level}
@@ -1152,8 +1392,9 @@ Format in markdown with ## for section headers. Be comprehensive but accessible.
 }
 
 function renderLessonContent(text, node) {
+  const active = getActiveRoadmap();
   const html = renderLessonMarkdown(text);
-  const isCompleted = state.completed.includes(node.id);
+  const isCompleted = active && active.completed.includes(node.id);
   lessonContent.innerHTML = html +
     (isCompleted
       ? '<button id="lesson-complete-btn" style="background:var(--surface2);color:var(--green);cursor:default;" disabled><i class="fa-solid fa-check-circle"></i> Completed</button>'
@@ -1184,8 +1425,10 @@ function renderLessonMarkdown(text) {
 
 function markComplete() {
   if (!currentLessonNodeId) return;
-  if (!state.completed.includes(currentLessonNodeId)) {
-    state.completed.push(currentLessonNodeId);
+  const active = getActiveRoadmap();
+  if (!active) return;
+  if (!active.completed.includes(currentLessonNodeId)) {
+    active.completed.push(currentLessonNodeId);
     saveState();
     const btn = document.getElementById('lesson-complete-btn');
     if (btn) {
@@ -1224,7 +1467,9 @@ async function sendLessonQuestion() {
   lessonInput.value = '';
   lessonInput.style.height = 'auto';
 
-  const node = state.nodes.find(n => n.id === currentLessonNodeId);
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const node = active.nodes.find(n => n.id === currentLessonNodeId);
   if (!node) return;
 
   // User message
@@ -1241,14 +1486,14 @@ async function sendLessonQuestion() {
   lessonChat.appendChild(typing);
   lessonChat.scrollTop = lessonChat.scrollHeight;
 
-  const lessonContent = getLesson(currentLessonNodeId) || '';
+  const lessonContentText = getLesson(currentLessonNodeId) || '';
 
   try {
-    const prompt = `You are helping the user understand the concept "${node.name}" from their "${state.subject}" study roadmap.
+    const prompt = `You are helping the user understand the concept "${node.name}" from their "${active.subject}" study roadmap.
 
 The lesson content they are viewing is:
 ---
-${lessonContent.slice(0, 3000)}
+${lessonContentText.slice(0, 3000)}
 ---
 
 The user asks: "${text}"
@@ -1339,8 +1584,6 @@ saveApiBtn.addEventListener('click', () => {
   proxyStatus.style.display = 'block';
   setTimeout(() => { proxyStatus.style.display = 'none'; }, 2000);
 });
-
-// ── Close panels on Escape (mobile: swipe handled by CSS) ──
 
 // ── Expose for inline onclick ──
 window.ROADMAP = { openLesson };
