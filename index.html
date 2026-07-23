@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1525,56 +1525,6 @@ function renderChatMarkdown(text) {
     .replace(/\n/g, '<br>');
 }
 
-// ── Edge blocker: prevents native swipe-back on mobile ──
-const edgeBlocker = document.getElementById('edge-blocker');
-
-function showEdgeBlocker() {
-  edgeBlocker.style.display = 'block';
-}
-
-function hideEdgeBlocker() {
-  edgeBlocker.style.display = 'none';
-}
-
-// ── Intercept swipe-back / back-button ──
-function pushPanelState() {
-  history.pushState({ panelOpen: true }, '');
-}
-
-const _origOpenLesson = window.ROADMAP.openLesson;
-window.ROADMAP.openLesson = function(nodeId) {
-  pushPanelState();
-  showEdgeBlocker();
-  return _origOpenLesson(nodeId);
-};
-
-const _origOpenAi = openAiConfig;
-openAiConfig = function() {
-  pushPanelState();
-  showEdgeBlocker();
-  return _origOpenAi();
-};
-
-// Hide blocker when panels close via their back buttons
-lessonBackBtn.addEventListener('click', hideEdgeBlocker);
-aiConfigBack.addEventListener('click', hideEdgeBlocker);
-
-window.addEventListener('popstate', () => {
-  if (lessonPanel.classList.contains('open')) {
-    lessonPanel.classList.remove('open');
-    currentLessonNodeId = null;
-    hideEdgeBlocker();
-    history.pushState(null, '');
-    return;
-  }
-  if (aiConfigPanel.classList.contains('open')) {
-    closeAiConfig();
-    hideEdgeBlocker();
-    history.pushState(null, '');
-    return;
-  }
-});
-
 // ── AI Config ──
 function updateAiStatus() {
   if (getProxyUrl()) {
@@ -1616,7 +1566,56 @@ saveApiBtn.addEventListener('click', () => {
 
 // ── Expose for inline onclick ──
 window.ROADMAP = { openLesson };
-</script>
 
+// ── Intercept swipe-back / back-button ──
+// NOW at the bottom, after window.ROADMAP is defined
+const edgeBlocker = document.getElementById('edge-blocker');
+
+function showEdgeBlocker() {
+  edgeBlocker.style.display = 'block';
+}
+function hideEdgeBlocker() {
+  edgeBlocker.style.display = 'none';
+}
+
+function pushPanelState() {
+  history.pushState({ panelOpen: true }, '');
+}
+
+const _origOpenLesson = window.ROADMAP.openLesson;
+window.ROADMAP.openLesson = function(nodeId) {
+  pushPanelState();
+  showEdgeBlocker();
+  return _origOpenLesson(nodeId);
+};
+
+const _origOpenAi = openAiConfig;
+openAiConfig = function() {
+  pushPanelState();
+  showEdgeBlocker();
+  return _origOpenAi();
+};
+
+// Hide blocker when panels close via back buttons
+lessonBackBtn.addEventListener('click', hideEdgeBlocker);
+aiConfigBack.addEventListener('click', hideEdgeBlocker);
+
+// Intercept popstate for back button / swipe-back
+window.addEventListener('popstate', () => {
+  if (lessonPanel.classList.contains('open')) {
+    lessonPanel.classList.remove('open');
+    currentLessonNodeId = null;
+    hideEdgeBlocker();
+    history.pushState(null, '');
+    return;
+  }
+  if (aiConfigPanel.classList.contains('open')) {
+    closeAiConfig();
+    hideEdgeBlocker();
+    history.pushState(null, '');
+    return;
+  }
+});
+</script>
 </body>
 </html>
