@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Study Roadmap</title>
+
+<!-- PWA setup -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f1117">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #22263a;
+    --border:    #2e3347;
+    --accent:    #6c63ff;
+    --accent2:   #a78bfa;
+    --text:      #e8eaf0;
+    --text-muted:#8b90a8;
+    --red:       #f87171;
+    --amber:     #fbbf24;
+    --green:     #34d399;
+    --header-h:  56px;
+    --radius:    12px;
+    --radius-sm: 8px;
+    --transition: 0.18s ease;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app {
+    max-width: 430px;
+    margin: 0 auto;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  #header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  #header-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #ai-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #ai-config-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--transition), color var(--transition);
+  }
+  #ai-config-btn:hover { background: var(--border); color: var(--text); }
+  #ai-config-btn.connected { background: rgba(52, 211, 153, 0.15); color: var(--green); }
+
+  /* ── Content ── */
+  #content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0;
+    min-height: 0;
+  }
+
+  /* ── Section Card ── */
+  .section-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center; padding: 28px 16px;
+    color: var(--text-muted); font-size: 13px;
+  }
+  .empty-state i { font-size: 26px; margin-bottom: 8px; display: block; opacity: 0.4; }
+
+  /* ── Scrollbar ── */
+  #content::-webkit-scrollbar { width: 3px; }
+  #content::-webkit-scrollbar-track { background: transparent; }
+  #content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+  /* ── Misc ── */
+  .fade-in { animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ══════════════════════════════════════════════════
+     SETUP VIEW
+     ══════════════════════════════════════════════════ */
+  #setup-view {
+    padding: 20px 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .hero {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .hero-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .hero h1 {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .hero p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+
+  .suggestion-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .suggestion-pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+  }
+  .suggestion-pill:hover {
+    background: rgba(108, 99, 255, 0.1);
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+  .suggestion-pill.selected {
+    background: rgba(108, 99, 255, 0.15);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  textarea.roadmap-input {
+    width: 100%;
+    min-height: 110px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 13px;
+    padding: 12px;
+    outline: none;
+    font-family: inherit;
+    margin-bottom: 10px;
+    resize: vertical;
+    line-height: 1.5;
+    transition: border-color var(--transition);
+  }
+  textarea.roadmap-input:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity var(--transition);
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-secondary {
+    padding: 10px 16px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  .btn-secondary:hover { background: var(--border); color: var(--text); }
+
+  /* ── AI Setup Modal ── */
+  #ai-config-panel {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+  #ai-config-panel.open { transform: translateX(0); }
+
+  #ai-config-panel .panel-header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  #ai-config-panel .panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 16px;
+  }
+
+  .config-field { margin-bottom: 16px; }
+  .config-field label {
+    font-size: 12px; color: var(--text-muted);
+    font-weight: 600; display: block; margin-bottom: 5px;
+    letter-spacing: 0.5px;
+  }
+  .config-field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color var(--transition);
+  }
+  .config-field input:focus { border-color: var(--accent); }
+
+  /* ══════════════════════════════════════════════════
+     GRAPH VIEW
+     ══════════════════════════════════════════════════ */
+  #graph-view {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 12px 40px;
+    min-height: 0;
+    position: relative;
+  }
+
+  .rm-graph-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--text);
+    text-align: center;
+    padding: 0 16px;
+  }
+  .rm-graph-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .rm-node {
+    width: 100%;
+    max-width: 340px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition), transform var(--transition);
+    position: relative;
+  }
+  .rm-node:hover {
+    border-color: var(--accent2);
+    background: var(--surface2);
+    transform: translateX(4px);
+  }
+  .rm-node.completed {
+    border-color: var(--green);
+    background: rgba(52, 211, 153, 0.06);
+  }
+  .rm-node.active {
+    border-color: var(--accent);
+    background: rgba(108, 99, 255, 0.08);
+  }
+  .rm-node.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .rm-node.locked:hover {
+    border-color: var(--border);
+    transform: none;
+  }
+  .rm-node.generating {
+    border-color: var(--amber);
+    animation: pulseBorder 1.5s ease infinite;
+  }
+  @keyframes pulseBorder {
+    0%, 100% { border-color: var(--amber); }
+    50% { border-color: var(--accent2); }
+  }
+
+  .rm-node-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .rm-node-icon {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .rm-node-icon.foundational { background: rgba(167, 139, 250, 0.15); color: var(--accent2); }
+  .rm-node-icon.intermediate { background: rgba(108, 99, 255, 0.15); color: var(--accent); }
+  .rm-node-icon.advanced    { background: rgba(251, 191, 36, 0.15); color: var(--amber); }
+
+  .rm-node-info { flex: 1; min-width: 0; }
+  .rm-node-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rm-node-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .rm-node-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .rm-node-badge.ready {
+    background: rgba(108, 99, 255, 0.15);
+    color: var(--accent2);
+  }
+  .rm-node-badge.done {
+    background: rgba(52, 211, 153, 0.15);
+    color: var(--green);
+  }
+  .rm-node-badge.locked {
+    background: var(--surface2);
+    color: var(--text-muted);
+  }
+
+  .rm-connector {
+    width: 2px;
+    height: 24px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .rm-connector.active { background: var(--accent); }
+  .rm-connector.done { background: var(--green); }
+
+  .rm-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin: 16px 0 8px;
+    text-align: center;
+    width: 100%;
+  }
+
+  .rm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 340px;
+  }
+  .rm-actions .btn-secondary { flex: 1; text-align: center; }
+
+  /* ══════════════════════════════════════════════════
+     LESSON PANEL
+     ══════════════════════════════════════════════════ */
+  #lesson-panel {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+  #lesson-panel.open { transform: translateX(0); }
+
+  .panel-header {
+    height: var(--header-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  .panel-header .back-btn {
+    width: 34px; height: 34px;
+    border: none; border-radius: 50%;
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background var(--transition);
+  }
+  .panel-header .back-btn:hover { background: var(--border); color: var(--text); }
+  .panel-header .panel-title {
+    font-size: 15px; font-weight: 700;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  #lesson-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 16px 20px;
+    line-height: 1.7;
+    font-size: 14px;
+  }
+  #lesson-content h2 {
+    font-size: 18px; font-weight: 700;
+    color: var(--accent2); margin: 20px 0 8px;
+  }
+  #lesson-content h2:first-child { margin-top: 0; }
+  #lesson-content h3 {
+    font-size: 15px; font-weight: 700;
+    color: var(--text); margin: 16px 0 6px;
+  }
+  #lesson-content p { margin-bottom: 10px; color: var(--text); line-height: 1.65; }
+  #lesson-content ul, #lesson-content ol { padding-left: 20px; margin: 8px 0; }
+  #lesson-content li { margin-bottom: 5px; }
+  #lesson-content strong { color: var(--accent2); }
+  #lesson-content em { color: var(--amber); font-style: normal; }
+  #lesson-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  #lesson-content code {
+    background: var(--surface2); padding: 2px 6px;
+    border-radius: 4px; font-size: 13px;
+  }
+  #lesson-content pre {
+    background: var(--surface2); padding: 10px; border-radius: 6px;
+    overflow-x: auto; font-size: 12px; line-height: 1.4; margin: 8px 0;
+  }
+  #lesson-content .loading-lesson {
+    text-align: center; padding: 40px 20px; color: var(--text-muted);
+  }
+  #lesson-content .loading-lesson i {
+    font-size: 32px; margin-bottom: 12px; display: block;
+    animation: spin 1.5s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  #lesson-complete-btn {
+    width: 100%; padding: 12px;
+    background: var(--green); color: #000;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    margin: 16px 0; transition: opacity var(--transition);
+  }
+  #lesson-complete-btn:hover { opacity: 0.85; }
+  #lesson-complete-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* Lesson chat (follow-up Q&A) */
+  #lesson-chat-area {
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+    max-height: 40%;
+    display: flex;
+    flex-direction: column;
+  }
+  #lesson-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .chat-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    animation: fadeIn 0.2s ease;
+  }
+  .chat-msg.user { align-items: flex-end; }
+  .chat-msg.assistant { align-items: flex-start; }
+
+  .chat-bubble {
+    max-width: 85%;
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .chat-msg.user .chat-bubble {
+    background: var(--accent); color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .chat-msg.assistant .chat-bubble {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .chat-bubble strong { color: var(--accent2); }
+  .chat-bubble em { color: var(--amber); font-style: normal; }
+  .chat-bubble code {
+    background: rgba(0,0,0,0.2); padding: 1px 4px;
+    border-radius: 3px; font-size: 12px;
+  }
+  .chat-bubble ul { padding-left: 14px; margin: 4px 0; }
+  .chat-bubble li { margin-bottom: 2px; }
+
+  .chat-typing {
+    display: flex; align-items: center; gap: 4px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    width: fit-content;
+  }
+  .chat-typing span {
+    width: 6px; height: 6px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    animation: typingBounce 1.2s infinite;
+  }
+  .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+  .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  #lesson-input-bar {
+    display: flex; align-items: flex-end; gap: 6px;
+    padding: 8px 12px 12px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #lesson-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.4;
+    max-height: 60px;
+    transition: border-color var(--transition);
+  }
+  #lesson-input:focus { border-color: var(--accent); }
+  #lesson-send-btn {
+    width: 34px; height: 34px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 50%;
+    font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: opacity var(--transition), transform var(--transition);
+  }
+  #lesson-send-btn:hover { opacity: 0.85; }
+  #lesson-send-btn:active { transform: scale(0.92); }
+  #lesson-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Subject info in graph header ── */
+  .subject-info {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+  }
+  .subject-info .si-name {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .subject-info .si-progress {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .subject-info .si-progress span {
+    color: var(--green);
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Header -->
+  <header id="header">
+    <div id="header-title"><i class="fa-solid fa-map"></i> Study Roadmap</div>
+    <div id="ai-status">
+      <button id="ai-config-btn" title="AI Settings"><i class="fa-solid fa-gear"></i></button>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main id="content">
+
+    <!-- SETUP VIEW -->
+    <div id="setup-view">
+      <div class="hero">
+        <span class="hero-icon">🧠</span>
+        <h1>Build Your Study Roadmap</h1>
+        <p>Tell me what you're studying — from a course syllabus, old exams, or just a topic — and I'll create a bottom-up concept map with AI-powered lessons.</p>
+      </div>
+
+      <div class="section-card">
+        <div class="section-header"><span class="section-title">📝 What are you studying?</span></div>
+        <div style="padding:16px;">
+          <textarea id="roadmap-input" class="roadmap-input" placeholder="e.g. I'm studying Linear Algebra, course code SF1624. Here's the syllabus: Vector spaces, linear transformations, eigenvalues, diagonalization, inner products..."></textarea>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Quick picks:</div>
+          <div class="suggestion-pills" id="roadmap-suggestions">
+            <span class="suggestion-pill" data-text="Linear Algebra — vector spaces, matrices, determinants, eigenvalues, linear transformations, diagonalization">Linear Algebra</span>
+            <span class="suggestion-pill" data-text="Calculus 1 — limits, derivatives, integrals, fundamental theorem, applications">Calculus 1</span>
+            <span class="suggestion-pill" data-text="Data Structures & Algorithms — arrays, linked lists, trees, graphs, sorting, dynamic programming">DSA</span>
+            <span class="suggestion-pill" data-text="Physics — classical mechanics, kinematics, Newton's laws, energy, momentum">Physics</span>
+            <span class="suggestion-pill" data-text="Programming Fundamentals — variables, functions, conditionals, loops, OOP basics">Programming</span>
+          </div>
+          <button id="roadmap-generate-btn" class="btn-primary">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Roadmap
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GRAPH VIEW -->
+    <div id="graph-view" style="display:none;">
+      <div id="roadmap-graph-inner"></div>
+      <div class="rm-actions">
+        <button id="rm-new-roadmap" class="btn-secondary"><i class="fa-solid fa-plus"></i> New Subject</button>
+        <button id="rm-regen-roadmap" class="btn-secondary"><i class="fa-solid fa-arrow-rotate"></i> Regenerate</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Lesson Panel -->
+  <div id="lesson-panel">
+    <div class="panel-header">
+      <button id="lesson-back-btn" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+      <span class="panel-title" id="lesson-title">Lesson</span>
+    </div>
+    <div id="lesson-content">
+      <div class="loading-lesson">
+        <i class="fa-solid fa-spinner"></i>
+        <div>Generating lesson…</div>
+      </div>
+    </div>
+    <div id="lesson-chat-area">
+      <div id="lesson-chat-messages"></div>
+      <div id="lesson-input-bar">
+        <textarea id="lesson-input" placeholder="Ask a follow-up question…" rows="1"></textarea>
+        <button id="lesson-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Config Panel -->
+  <div id="ai-config-panel">
+    <div class="panel-header">
+      <button id="ai-config-back-btn" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+      <span class="panel-title">AI Settings</span>
+    </div>
+    <div class="panel-content">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.5;">
+        This app uses DeepSeek through a PHP proxy. Enter the URL and password you set in <strong style="color:var(--accent2)">proxy.php</strong>.
+      </p>
+      <div class="config-field">
+        <label>Proxy URL</label>
+        <input id="proxy-url-input" type="url" placeholder="https://yourdomain.com/proxy.php">
+      </div>
+      <div class="config-field">
+        <label>Secret Password</label>
+        <input id="proxy-token-input" type="password" placeholder="Your secret password">
+      </div>
+      <div id="proxy-config-status" style="font-size:12px;color:var(--green);margin-bottom:10px;display:none;"></div>
+      <button id="save-api-key" class="btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save & Connect</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================
+   STUDY ROADMAP — Standalone App
+   ===================================================== */
+
+// ── Storage helpers ──
+const LS = {
+  get: (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function escHtml(s) {
+  return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"');
+}
+
+// ── AI Proxy helpers ──
+function getProxyUrl() { return localStorage.getItem('rm_proxy_url') || ''; }
+function setProxyUrl(u) { localStorage.setItem('rm_proxy_url', u); }
+function getProxyToken() { return localStorage.getItem('rm_proxy_token') || ''; }
+function setProxyToken(t) { localStorage.setItem('rm_proxy_token', t); }
+
+// ── DOM refs ──
+const setupView    = document.getElementById('setup-view');
+const graphView    = document.getElementById('graph-view');
+const graphInner   = document.getElementById('roadmap-graph-inner');
+const inputEl      = document.getElementById('roadmap-input');
+const generateBtn  = document.getElementById('roadmap-generate-btn');
+const newBtn       = document.getElementById('rm-new-roadmap');
+const regenBtn     = document.getElementById('rm-regen-roadmap');
+const lessonPanel  = document.getElementById('lesson-panel');
+const lessonBackBtn= document.getElementById('lesson-back-btn');
+const lessonTitle  = document.getElementById('lesson-title');
+const lessonContent= document.getElementById('lesson-content');
+const lessonInput  = document.getElementById('lesson-input');
+const lessonSendBtn= document.getElementById('lesson-send-btn');
+const lessonChat   = document.getElementById('lesson-chat-messages');
+const aiConfigBtn  = document.getElementById('ai-config-btn');
+const aiConfigPanel= document.getElementById('ai-config-panel');
+const aiConfigBack = document.getElementById('ai-config-back-btn');
+const proxyUrlInput= document.getElementById('proxy-url-input');
+const proxyTokenInput= document.getElementById('proxy-token-input');
+const saveApiBtn   = document.getElementById('save-api-key');
+const proxyStatus  = document.getElementById('proxy-config-status');
+
+// ── State ──
+let state = { subject: '', nodes: [], completed: [] };
+let currentLessonNodeId = null;
+
+function loadState() {
+  state = LS.get('rm_state', { subject: '', nodes: [], completed: [] });
+}
+function saveState() {
+  LS.set('rm_state', state);
+}
+
+// ── Init ──
+loadState();
+
+// Load saved proxy settings
+const savedUrl = getProxyUrl();
+const savedToken = getProxyToken();
+if (savedUrl) proxyUrlInput.value = savedUrl;
+if (savedToken) proxyTokenInput.value = savedToken;
+updateAiStatus();
+
+// If there's a saved roadmap, show graph
+if (state.nodes && state.nodes.length > 0) {
+  showGraphView();
+} else {
+  showSetupView();
+}
+
+// ── View switching ──
+function showSetupView() {
+  setupView.style.display = 'block';
+  graphView.style.display = 'none';
+}
+
+function showGraphView() {
+  setupView.style.display = 'none';
+  graphView.style.display = 'flex';
+  renderGraph();
+}
+
+// ── Suggestion pills ──
+document.querySelectorAll('#roadmap-suggestions .suggestion-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    inputEl.value = pill.dataset.text;
+    document.querySelectorAll('#roadmap-suggestions .suggestion-pill').forEach(p => p.classList.remove('selected'));
+    pill.classList.add('selected');
+  });
+});
+
+// ── Generate roadmap ──
+generateBtn.addEventListener('click', generate);
+
+async function generate() {
+  const subject = inputEl.value.trim();
+  if (!subject) {
+    inputEl.focus();
+    inputEl.style.borderColor = 'var(--red)';
+    setTimeout(() => inputEl.style.borderColor = '', 1500);
+    return;
+  }
+
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) {
+    openAiConfig();
+    return;
+  }
+
+  generateBtn.disabled = true;
+  generateBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+
+  const prompt = `Create a bottom-up study roadmap for the following subject/topic:
+
+"${subject}"
+
+Instructions:
+1. Break this subject down into 8-15 concepts/nodes
+2. Order them from foundational/basic (bottom) to advanced (top)
+3. Each concept is a prerequisite for the ones above it
+4. Group them into 3 levels: "foundational", "intermediate", "advanced"
+5. Each node needs: a short name (2-5 words), a one-sentence description, and its level
+
+Return ONLY valid JSON, no other text. Format:
+{
+  "subject": "Short subject name",
+  "nodes": [
+    { "id": "node1", "name": "Concept Name", "description": "One-sentence description", "level": "foundational|intermediate|advanced" }
+  ]
+}
+
+Make the roadmap complete and accurate for learning this topic from scratch.`;
+
+  try {
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 2000,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You generate structured study roadmaps. Always respond with valid JSON only, no other text.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        alert('Wrong proxy password. Check your settings.');
+        openAiConfig();
+        return;
+      }
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    const text = json.choices?.[0]?.message?.content || '';
+
+    let roadmapData;
+    try {
+      roadmapData = JSON.parse(text);
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        roadmapData = JSON.parse(match[0]);
+      } else {
+        throw new Error('Could not parse AI response as JSON');
+      }
+    }
+
+    if (!roadmapData.nodes || !Array.isArray(roadmapData.nodes) || roadmapData.nodes.length === 0) {
+      throw new Error('AI returned no nodes');
+    }
+
+    state.subject = roadmapData.subject || subject.slice(0, 40);
+    state.nodes = roadmapData.nodes;
+    state.completed = [];
+    saveState();
+
+    showGraphView();
+    inputEl.value = '';
+
+  } catch (e) {
+    alert('Failed to generate roadmap: ' + e.message);
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Roadmap';
+  }
+}
+
+// ── New / Regenerate ──
+newBtn.addEventListener('click', showSetupView);
+regenBtn.addEventListener('click', showSetupView);
+
+// ── Render graph ──
+function renderGraph() {
+  if (!state || !state.nodes) return;
+
+  const { subject, nodes, completed } = state;
+  const levels = ['foundational', 'intermediate', 'advanced'];
+  const levelLabels = { foundational: '🟣 Basics', intermediate: '🔵 Core Concepts', advanced: '🟡 Advanced Topics' };
+  const levelIcons = { foundational: 'fa-solid fa-layer-group', intermediate: 'fa-solid fa-cubes', advanced: 'fa-solid fa-rocket' };
+
+  let totalComplete = completed.length;
+  let totalNodes = nodes.length;
+
+  let html = `
+    <div class="subject-info">
+      <div class="si-name">📚 ${escHtml(subject)}</div>
+      <div class="si-progress">
+        ${totalComplete > 0 ? `<span>${totalComplete}/${totalNodes}</span> lessons completed` : 'Tap any node to open its lesson'}
+      </div>
+    </div>
+  `;
+
+  levels.forEach((level, levelIdx) => {
+    const levelNodes = nodes.filter(n => n.level === level);
+    if (levelNodes.length === 0) return;
+
+    if (levelIdx > 0) {
+      const prevComplete = nodes
+        .filter(n => levels.indexOf(n.level) < levelIdx)
+        .every(n => completed.includes(n.id));
+      html += `<div class="rm-connector ${prevComplete ? 'done' : ''}"></div>`;
+    }
+
+    html += `<div class="rm-group-label"><i class="${levelIcons[level]}"></i> ${levelLabels[level]}</div>`;
+
+    levelNodes.forEach((node, idx) => {
+      const isCompleted = completed.includes(node.id);
+      const isLocked = isNodeLocked(node);
+      const prevAllLevels = nodes.slice(0, nodes.indexOf(node));
+
+      let statusBadge = '';
+      let nodeClass = 'rm-node';
+      if (isCompleted) {
+        nodeClass += ' completed';
+        statusBadge = '<span class="rm-node-badge done">✓ Done</span>';
+      } else if (getLesson(node.id)) {
+        nodeClass += ' active';
+        statusBadge = '<span class="rm-node-badge ready">Ready</span>';
+      } else if (isLocked) {
+        nodeClass += ' locked';
+        statusBadge = '<span class="rm-node-badge locked"><i class="fa-solid fa-lock"></i></span>';
+      } else {
+        statusBadge = '<span class="rm-node-badge ready"><i class="fa-solid fa-play"></i></span>';
+      }
+
+      html += `
+        <div class="${nodeClass}" data-node-id="${node.id}" data-locked="${isLocked}">
+          <div class="rm-node-header">
+            <div class="rm-node-icon ${node.level}">
+              <i class="fa-solid ${node.level === 'foundational' ? 'fa-book' : node.level === 'intermediate' ? 'fa-brain' : 'fa-graduation-cap'}"></i>
+            </div>
+            <div class="rm-node-info">
+              <div class="rm-node-name">${escHtml(node.name)}</div>
+              <div class="rm-node-desc">${escHtml(node.description)}</div>
+            </div>
+            ${statusBadge}
+          </div>
+        </div>`;
+
+      if (idx < levelNodes.length - 1) {
+        html += `<div class="rm-connector"></div>`;
+      }
+    });
+  });
+
+  graphInner.innerHTML = html;
+
+  graphInner.querySelectorAll('.rm-node').forEach(el => {
+    el.addEventListener('click', () => {
+      const nodeId = el.dataset.nodeId;
+      const locked = el.dataset.locked === 'true';
+      if (locked) return;
+      openLesson(nodeId);
+    });
+  });
+}
+
+function isNodeLocked(node) {
+  if (!state || !state.nodes) return false;
+  const { nodes, completed } = state;
+  const nodeIdx = nodes.indexOf(node);
+  if (nodeIdx <= 0) return false;
+
+  const levelOrder = { foundational: 0, intermediate: 1, advanced: 2 };
+  const prevNodes = nodes.slice(0, nodeIdx);
+  const requiredPrev = prevNodes.filter(n => levelOrder[n.level] <= levelOrder[node.level]);
+
+  return requiredPrev.length > 0 && !requiredPrev.every(n => completed.includes(n.id));
+}
+
+// ── Lesson storage ──
+function getLesson(nodeId) {
+  return LS.get('rm_lesson_' + nodeId, null);
+}
+function saveLesson(nodeId, content) {
+  LS.set('rm_lesson_' + nodeId, content);
+}
+
+// ── Open lesson ──
+async function openLesson(nodeId) {
+  const node = state.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+
+  currentLessonNodeId = nodeId;
+  lessonTitle.textContent = node.name;
+  lessonContent.innerHTML = '<div class="loading-lesson"><i class="fa-solid fa-spinner"></i><div>Generating lesson…</div></div>';
+  lessonChat.innerHTML = '';
+  lessonInput.value = '';
+  lessonPanel.classList.add('open');
+
+  const cached = getLesson(nodeId);
+  if (cached) {
+    renderLessonContent(cached, node);
+    return;
+  }
+
+  try {
+    const prompt = `Create a detailed lesson for the concept "${node.name}" in the subject "${state.subject}".
+
+Context for this concept: ${node.description}
+Level: ${node.level}
+
+Requirements:
+1. Explain the concept clearly and thoroughly
+2. Start with the intuition, then go deeper
+3. Include practical examples
+4. Break down complex parts
+5. End with 2-3 practice questions or key takeaways
+
+Format in markdown with ## for section headers. Be comprehensive but accessible.`;
+
+    const res = await fetch(getProxyUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 2500,
+        temperature: 0.6,
+        messages: [
+          { role: 'system', content: 'You create detailed, clear lessons for self-study. Format with markdown.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const lessonText = json.choices?.[0]?.message?.content || 'Lesson content not available.';
+
+    saveLesson(nodeId, lessonText);
+    renderLessonContent(lessonText, node);
+    renderGraph();
+
+  } catch (e) {
+    lessonContent.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--red);">
+      <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;display:block;margin-bottom:12px;"></i>
+      Failed to generate lesson: ${e.message}
+      <br><br>
+      <button onclick="ROADMAP.openLesson('${nodeId}')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;">Retry</button>
+    </div>`;
+  }
+}
+
+function renderLessonContent(text, node) {
+  const html = renderLessonMarkdown(text);
+  const isCompleted = state.completed.includes(node.id);
+  lessonContent.innerHTML = html +
+    (isCompleted
+      ? '<button id="lesson-complete-btn" style="background:var(--surface2);color:var(--green);cursor:default;" disabled><i class="fa-solid fa-check-circle"></i> Completed</button>'
+      : '<button id="lesson-complete-btn" onclick="markComplete()"><i class="fa-solid fa-check"></i> Mark as Complete</button>');
+}
+
+function renderLessonMarkdown(text) {
+  let html = escHtml(text)
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/---/g, '<hr>')
+    .replace(/\n/g, '<br>');
+
+  html = html.replace(/(<li>.*?<\/li>)(?:\s*<li>.*?<\/li>)*/g, match => {
+    return '<ul>' + match + '</ul>';
+  });
+  html = html.replace(/<\/h2><br>/g, '</h2>');
+  html = html.replace(/<\/h3><br>/g, '</h3>');
+  html = html.replace(/<br><br><br>/g, '<br><br>');
+
+  return html;
+}
+
+function markComplete() {
+  if (!currentLessonNodeId) return;
+  if (!state.completed.includes(currentLessonNodeId)) {
+    state.completed.push(currentLessonNodeId);
+    saveState();
+    const btn = document.getElementById('lesson-complete-btn');
+    if (btn) {
+      btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Completed';
+      btn.style.background = 'var(--surface2)';
+      btn.style.color = 'var(--green)';
+      btn.disabled = true;
+    }
+    renderGraph();
+  }
+}
+
+// ── Close lesson ──
+lessonBackBtn.addEventListener('click', () => {
+  lessonPanel.classList.remove('open');
+  currentLessonNodeId = null;
+});
+
+// ── Lesson follow-up Q&A ──
+lessonSendBtn.addEventListener('click', sendLessonQuestion);
+lessonInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendLessonQuestion();
+  }
+});
+lessonInput.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 60) + 'px';
+});
+
+async function sendLessonQuestion() {
+  const text = lessonInput.value.trim();
+  if (!text || !currentLessonNodeId) return;
+
+  lessonInput.value = '';
+  lessonInput.style.height = 'auto';
+
+  const node = state.nodes.find(n => n.id === currentLessonNodeId);
+  if (!node) return;
+
+  // User message
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.innerHTML = `<div class="chat-bubble">${escHtml(text)}</div>`;
+  lessonChat.appendChild(userMsg);
+  lessonChat.scrollTop = lessonChat.scrollHeight;
+
+  // Typing
+  const typing = document.createElement('div');
+  typing.className = 'chat-msg assistant';
+  typing.innerHTML = `<div class="chat-typing"><span></span><span></span><span></span></div>`;
+  lessonChat.appendChild(typing);
+  lessonChat.scrollTop = lessonChat.scrollHeight;
+
+  const lessonContent = getLesson(currentLessonNodeId) || '';
+
+  try {
+    const prompt = `You are helping the user understand the concept "${node.name}" from their "${state.subject}" study roadmap.
+
+The lesson content they are viewing is:
+---
+${lessonContent.slice(0, 3000)}
+---
+
+The user asks: "${text}"
+
+Answer clearly and conversationally. Be helpful but concise.`;
+
+    const res = await fetch(getProxyUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        max_tokens: 800,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You are a helpful tutor. Answer questions clearly and concisely.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    typing.remove();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const reply = json.choices?.[0]?.message?.content || 'Sorry, I couldn\'t answer that.';
+
+    const botMsg = document.createElement('div');
+    botMsg.className = 'chat-msg assistant';
+    botMsg.innerHTML = `<div class="chat-bubble">${renderChatMarkdown(reply)}</div>`;
+    lessonChat.appendChild(botMsg);
+    lessonChat.scrollTop = lessonChat.scrollHeight;
+
+  } catch (e) {
+    typing.remove();
+    const errMsg = document.createElement('div');
+    errMsg.className = 'chat-msg assistant';
+    errMsg.innerHTML = `<div class="chat-bubble" style="color:var(--red);">Error: ${e.message}</div>`;
+    lessonChat.appendChild(errMsg);
+    lessonChat.scrollTop = lessonChat.scrollHeight;
+  }
+}
+
+function renderChatMarkdown(text) {
+  return escHtml(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/^- (.+)/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)(?:\s*<li>.*<\/li>)*/g, '<ul>$1</ul>')
+    .replace(/\n/g, '<br>');
+}
+
+// ── AI Config ──
+function updateAiStatus() {
+  if (getProxyUrl()) {
+    aiConfigBtn.classList.add('connected');
+    aiConfigBtn.innerHTML = '<i class="fa-solid fa-check-circle"></i>';
+    aiConfigBtn.title = 'AI Connected';
+  } else {
+    aiConfigBtn.classList.remove('connected');
+    aiConfigBtn.innerHTML = '<i class="fa-solid fa-gear"></i>';
+    aiConfigBtn.title = 'Configure AI';
+  }
+}
+
+function openAiConfig() {
+  proxyUrlInput.value = getProxyUrl();
+  proxyTokenInput.value = getProxyToken();
+  aiConfigPanel.classList.add('open');
+}
+
+function closeAiConfig() {
+  aiConfigPanel.classList.remove('open');
+}
+
+aiConfigBtn.addEventListener('click', openAiConfig);
+aiConfigBack.addEventListener('click', closeAiConfig);
+
+saveApiBtn.addEventListener('click', () => {
+  const url = proxyUrlInput.value.trim();
+  const token = proxyTokenInput.value.trim();
+  if (!url) { alert('Please enter your proxy URL'); return; }
+  setProxyUrl(url);
+  setProxyToken(token);
+  updateAiStatus();
+  closeAiConfig();
+  proxyStatus.textContent = '✓ Connected and saved!';
+  proxyStatus.style.display = 'block';
+  setTimeout(() => { proxyStatus.style.display = 'none'; }, 2000);
+});
+
+// ── Close panels on Escape (mobile: swipe handled by CSS) ──
+
+// ── Expose for inline onclick ──
+window.ROADMAP = { openLesson };
+</script>
+
+</body>
+</html>
