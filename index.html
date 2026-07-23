@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -44,6 +44,8 @@
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     font-size: 15px;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
   }
 
   #app {
@@ -1521,34 +1523,40 @@ function renderChatMarkdown(text) {
     .replace(/\n/g, '<br>');
 }
 
-// ── Swipe-back gesture for mobile ──
-let touchStartX = 0;
-let touchStartY = 0;
+// ── Intercept browser swipe-back/back-button to close panels ──
+// Push a history state when panels open, then intercept popstate to close them.
 
-document.addEventListener('touchstart', (e) => {
-  touchStartX = e.touches[0].clientX;
-  touchStartY = e.touches[0].clientY;
-}, { passive: true });
+function pushPanelState() {
+  history.pushState({ panelOpen: true }, '');
+}
 
-document.addEventListener('touchend', (e) => {
-  const dx = e.changedTouches[0].clientX - touchStartX;
-  const dy = e.changedTouches[0].clientY - touchStartY;
+// Override openLesson to push history state
+const _origOpenLesson = window.ROADMAP.openLesson;
+window.ROADMAP.openLesson = function(nodeId) {
+  pushPanelState();
+  return _origOpenLesson(nodeId);
+};
 
-  // Only detect rightward swipes from the left edge
-  if (touchStartX < 30 && dx > 70 && Math.abs(dy) < 100) {
-    // Lesson panel is open → close it
-    if (lessonPanel.classList.contains('open')) {
-      lessonPanel.classList.remove('open');
-      currentLessonNodeId = null;
-      return;
-    }
-    // AI config panel is open → close it
-    if (aiConfigPanel.classList.contains('open')) {
-      closeAiConfig();
-      return;
-    }
+// Override openAiConfig to push history state
+const _origOpenAi = openAiConfig;
+openAiConfig = function() {
+  pushPanelState();
+  return _origOpenAi();
+};
+
+// Intercept popstate (fired on swipe-back or back button)
+window.addEventListener('popstate', () => {
+  if (lessonPanel.classList.contains('open')) {
+    lessonPanel.classList.remove('open');
+    currentLessonNodeId = null;
+    return;
   }
-}, { passive: true });
+  if (aiConfigPanel.classList.contains('open')) {
+    closeAiConfig();
+    return;
+  }
+  // If no panels are open, let the browser navigate back normally
+});
 
 // ── AI Config ──
 function updateAiStatus() {
