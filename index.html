@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -842,7 +842,9 @@
     </div>
   </div>
 
-  <!-- AI Config Panel -->
+<!-- Left-edge blocker for swipe-back prevention -->
+<div id="edge-blocker" style="position:fixed;left:0;top:0;width:35px;height:100%;z-index:9999;display:none;"></div>
+
   <div id="ai-config-panel">
     <div class="panel-header">
       <button id="ai-config-back-btn" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
@@ -1523,39 +1525,54 @@ function renderChatMarkdown(text) {
     .replace(/\n/g, '<br>');
 }
 
-// ── Intercept browser swipe-back/back-button to close panels ──
-// Push a history state when panels open, then intercept popstate to close them.
+// ── Edge blocker: prevents native swipe-back on mobile ──
+const edgeBlocker = document.getElementById('edge-blocker');
 
+function showEdgeBlocker() {
+  edgeBlocker.style.display = 'block';
+}
+
+function hideEdgeBlocker() {
+  edgeBlocker.style.display = 'none';
+}
+
+// ── Intercept swipe-back / back-button ──
 function pushPanelState() {
   history.pushState({ panelOpen: true }, '');
 }
 
-// Override openLesson to push history state
 const _origOpenLesson = window.ROADMAP.openLesson;
 window.ROADMAP.openLesson = function(nodeId) {
   pushPanelState();
+  showEdgeBlocker();
   return _origOpenLesson(nodeId);
 };
 
-// Override openAiConfig to push history state
 const _origOpenAi = openAiConfig;
 openAiConfig = function() {
   pushPanelState();
+  showEdgeBlocker();
   return _origOpenAi();
 };
 
-// Intercept popstate (fired on swipe-back or back button)
+// Hide blocker when panels close via their back buttons
+lessonBackBtn.addEventListener('click', hideEdgeBlocker);
+aiConfigBack.addEventListener('click', hideEdgeBlocker);
+
 window.addEventListener('popstate', () => {
   if (lessonPanel.classList.contains('open')) {
     lessonPanel.classList.remove('open');
     currentLessonNodeId = null;
+    hideEdgeBlocker();
+    history.pushState(null, '');
     return;
   }
   if (aiConfigPanel.classList.contains('open')) {
     closeAiConfig();
+    hideEdgeBlocker();
+    history.pushState(null, '');
     return;
   }
-  // If no panels are open, let the browser navigate back normally
 });
 
 // ── AI Config ──
