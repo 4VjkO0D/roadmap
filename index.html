@@ -1521,6 +1521,35 @@ function renderChatMarkdown(text) {
     .replace(/\n/g, '<br>');
 }
 
+// ── Swipe-back gesture for mobile ──
+let touchStartX = 0;
+let touchStartY = 0;
+
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+
+  // Only detect rightward swipes from the left edge
+  if (touchStartX < 30 && dx > 70 && Math.abs(dy) < 100) {
+    // Lesson panel is open → close it
+    if (lessonPanel.classList.contains('open')) {
+      lessonPanel.classList.remove('open');
+      currentLessonNodeId = null;
+      return;
+    }
+    // AI config panel is open → close it
+    if (aiConfigPanel.classList.contains('open')) {
+      closeAiConfig();
+      return;
+    }
+  }
+}, { passive: true });
+
 // ── AI Config ──
 function updateAiStatus() {
   if (getProxyUrl()) {
