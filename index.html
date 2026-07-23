@@ -93,7 +93,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     min-width: 200px;
-    max-height: 200px;
+    max-height: 260px;
     overflow-y: auto;
     z-index: 50;
     display: none;
@@ -140,6 +140,12 @@
     justify-content: center;
   }
   .switcher-item .switcher-delete:hover { color: var(--red); background: rgba(248,113,113,0.1); }
+  .switcher-remove-all {
+    border-top: 2px solid var(--red) !important;
+    color: var(--red) !important;
+    justify-content: center !important;
+  }
+  .switcher-remove-all:hover { background: rgba(248,113,113,0.08) !important; }
 
   #ai-status {
     display: flex;
@@ -312,6 +318,18 @@
     transition: background var(--transition);
   }
   .btn-secondary:hover { background: var(--border); color: var(--text); }
+  .btn-danger {
+    padding: 10px 16px;
+    background: rgba(248,113,113,0.1);
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition);
+  }
+  .btn-danger:hover { background: rgba(248,113,113,0.2); }
 
   /* ── AI Setup Modal ── */
   #ai-config-panel {
@@ -502,8 +520,10 @@
     margin-top: 20px;
     width: 100%;
     max-width: 340px;
+    flex-wrap: wrap;
   }
-  .rm-actions .btn-secondary { flex: 1; text-align: center; }
+  .rm-actions .btn-secondary { flex: 1; text-align: center; min-width: 0; }
+  .rm-actions .btn-danger { flex: 1; text-align: center; min-width: 0; }
 
   /* ══════════════════════════════════════════════════
      LESSON PANEL
@@ -801,6 +821,7 @@
           <div class="section-header"><span class="section-title">📂 Your Roadmaps</span></div>
           <div style="padding:16px;">
             <div class="existing-list" id="existing-roadmaps-list"></div>
+            <button id="remove-all-setup-btn" class="btn-danger" style="width:100%;"><i class="fa-solid fa-trash-can"></i> Delete All Roadmaps</button>
           </div>
         </div>
       </div>
@@ -830,6 +851,7 @@
       <div class="rm-actions">
         <button id="rm-new-roadmap" class="btn-secondary"><i class="fa-solid fa-plus"></i> New Subject</button>
         <button id="rm-regen-roadmap" class="btn-secondary"><i class="fa-solid fa-arrow-rotate"></i> Regenerate</button>
+        <button id="rm-delete-all-graph" class="btn-danger" style="width:100%;"><i class="fa-solid fa-trash-can"></i> Delete All Roadmaps</button>
       </div>
     </div>
   </main>
@@ -928,6 +950,8 @@ const headerArrow  = document.getElementById('header-arrow');
 const roadmapSwitcher = document.getElementById('roadmap-switcher');
 const existingRoadmapsContainer = document.getElementById('existing-roadmaps-container');
 const existingRoadmapsList = document.getElementById('existing-roadmaps-list');
+const removeAllSetupBtn = document.getElementById('remove-all-setup-btn');
+const removeAllGraphBtn = document.getElementById('rm-delete-all-graph');
 
 // ── State ──
 let state = { roadmaps: [], activeRoadmapId: null };
@@ -993,6 +1017,25 @@ function showGraphView() {
   updateRoadmapSwitcher();
 }
 
+// ── Delete all roadmaps ──
+function deleteAllRoadmaps() {
+  if (state.roadmaps.length === 0) return;
+  if (!confirm('Delete ALL roadmaps and all their lessons? This cannot be undone.')) return;
+
+  // Remove all cached lessons
+  state.roadmaps.forEach(rm => {
+    rm.nodes.forEach(n => {
+      try { localStorage.removeItem('rm_lesson_' + n.id); } catch {}
+    });
+  });
+
+  state.roadmaps = [];
+  state.activeRoadmapId = null;
+  saveState();
+  closeRoadmapSwitcher();
+  showSetupView();
+}
+
 // ── Existing roadmaps list (shown in setup view) ──
 function renderExistingRoadmaps() {
   if (state.roadmaps.length === 0) {
@@ -1042,10 +1085,18 @@ function updateRoadmapSwitcher() {
         <button class="switcher-delete" data-rm-id="${rm.id}" title="Delete roadmap"><i class="fa-solid fa-trash-can"></i></button>
       </div>`;
   });
+
+  // Add "Delete All" button at the bottom if there are roadmaps
+  if (state.roadmaps.length > 0) {
+    html += `<div class="switcher-item switcher-remove-all" id="remove-all-switcher-btn">
+      <span><i class="fa-solid fa-trash-can"></i> Delete All Roadmaps</span>
+    </div>`;
+  }
+
   roadmapSwitcher.innerHTML = html;
 
   // Click to switch
-  roadmapSwitcher.querySelectorAll('.switcher-item').forEach(el => {
+  roadmapSwitcher.querySelectorAll('.switcher-item[data-rm-id]').forEach(el => {
     el.addEventListener('click', (e) => {
       if (e.target.closest('.switcher-delete')) return;
       state.activeRoadmapId = el.dataset.rmId;
@@ -1055,25 +1106,22 @@ function updateRoadmapSwitcher() {
     });
   });
 
-  // Delete buttons
+  // Individual delete buttons
   roadmapSwitcher.querySelectorAll('.switcher-delete').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const rmId = btn.dataset.rmId;
-      if (state.roadmaps.length <= 1) {
-        alert('Cannot delete the last roadmap.');
-        return;
-      }
       if (!confirm('Delete this roadmap and all its lessons?')) return;
+      const toDelete = state.roadmaps.find(r => r.id === rmId);
       state.roadmaps = state.roadmaps.filter(r => r.id !== rmId);
-      // Remove cached lessons for this roadmap
-      const deletedRm = state.roadmaps.find(r => r.id === rmId);
-      if (deletedRm) {
-        deletedRm.nodes.forEach(n => {
+      if (toDelete) {
+        toDelete.nodes.forEach(n => {
           try { localStorage.removeItem('rm_lesson_' + n.id); } catch {}
         });
       }
-      if (state.activeRoadmapId === rmId) {
+      if (state.roadmaps.length === 0) {
+        state.activeRoadmapId = null;
+      } else if (state.activeRoadmapId === rmId) {
         state.activeRoadmapId = state.roadmaps[0].id;
       }
       saveState();
@@ -1086,6 +1134,15 @@ function updateRoadmapSwitcher() {
       }
     });
   });
+
+  // "Delete All" button in switcher
+  const removeAllSwitcher = document.getElementById('remove-all-switcher-btn');
+  if (removeAllSwitcher) {
+    removeAllSwitcher.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteAllRoadmaps();
+    });
+  }
 }
 
 function toggleRoadmapSwitcher() {
@@ -1108,6 +1165,10 @@ document.addEventListener('click', (e) => {
 
 headerTitleText.addEventListener('click', toggleRoadmapSwitcher);
 headerArrow.addEventListener('click', toggleRoadmapSwitcher);
+
+// ── "Delete All" button event listeners ──
+removeAllSetupBtn.addEventListener('click', deleteAllRoadmaps);
+removeAllGraphBtn.addEventListener('click', deleteAllRoadmaps);
 
 // ── Suggestion pills ──
 document.querySelectorAll('#roadmap-suggestions .suggestion-pill').forEach(pill => {
