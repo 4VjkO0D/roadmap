@@ -246,33 +246,6 @@
     margin: 0 auto;
   }
 
-  .suggestion-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 12px 0;
-  }
-  .suggestion-pill {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 8px 14px;
-    font-size: 13px;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: background var(--transition), border-color var(--transition), color var(--transition);
-  }
-  .suggestion-pill:hover {
-    background: rgba(108, 99, 255, 0.1);
-    border-color: var(--accent2);
-    color: var(--accent2);
-  }
-  .suggestion-pill.selected {
-    background: rgba(108, 99, 255, 0.15);
-    border-color: var(--accent);
-    color: var(--accent2);
-  }
-
   textarea.roadmap-input {
     width: 100%;
     min-height: 110px;
@@ -821,7 +794,6 @@
           <div class="section-header"><span class="section-title">📂 Your Roadmaps</span></div>
           <div style="padding:16px;">
             <div class="existing-list" id="existing-roadmaps-list"></div>
-            <button id="remove-all-setup-btn" class="btn-danger" style="width:100%;"><i class="fa-solid fa-trash-can"></i> Delete All Roadmaps</button>
           </div>
         </div>
       </div>
@@ -830,14 +802,6 @@
         <div class="section-header"><span class="section-title">📝 What are you studying?</span></div>
         <div style="padding:16px;">
           <textarea id="roadmap-input" class="roadmap-input" placeholder="e.g. I'm studying Linear Algebra, course code SF1624. Here's the syllabus: Vector spaces, linear transformations, eigenvalues, diagonalization, inner products..."></textarea>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Quick picks:</div>
-          <div class="suggestion-pills" id="roadmap-suggestions">
-            <span class="suggestion-pill" data-text="Linear Algebra — vector spaces, matrices, determinants, eigenvalues, linear transformations, diagonalization">Linear Algebra</span>
-            <span class="suggestion-pill" data-text="Calculus 1 — limits, derivatives, integrals, fundamental theorem, applications">Calculus 1</span>
-            <span class="suggestion-pill" data-text="Data Structures & Algorithms — arrays, linked lists, trees, graphs, sorting, dynamic programming">DSA</span>
-            <span class="suggestion-pill" data-text="Physics — classical mechanics, kinematics, Newton's laws, energy, momentum">Physics</span>
-            <span class="suggestion-pill" data-text="Programming Fundamentals — variables, functions, conditionals, loops, OOP basics">Programming</span>
-          </div>
           <button id="roadmap-generate-btn" class="btn-primary">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Roadmap
           </button>
@@ -851,7 +815,6 @@
       <div class="rm-actions">
         <button id="rm-new-roadmap" class="btn-secondary"><i class="fa-solid fa-plus"></i> New Subject</button>
         <button id="rm-regen-roadmap" class="btn-secondary"><i class="fa-solid fa-arrow-rotate"></i> Regenerate</button>
-        <button id="rm-delete-all-graph" class="btn-danger" style="width:100%;"><i class="fa-solid fa-trash-can"></i> Delete All Roadmaps</button>
       </div>
     </div>
   </main>
@@ -950,9 +913,6 @@ const headerArrow  = document.getElementById('header-arrow');
 const roadmapSwitcher = document.getElementById('roadmap-switcher');
 const existingRoadmapsContainer = document.getElementById('existing-roadmaps-container');
 const existingRoadmapsList = document.getElementById('existing-roadmaps-list');
-const removeAllSetupBtn = document.getElementById('remove-all-setup-btn');
-const removeAllGraphBtn = document.getElementById('rm-delete-all-graph');
-
 // ── State ──
 let state = { roadmaps: [], activeRoadmapId: null };
 let currentLessonNodeId = null;
@@ -1017,25 +977,6 @@ function showGraphView() {
   updateRoadmapSwitcher();
 }
 
-// ── Delete all roadmaps ──
-function deleteAllRoadmaps() {
-  if (state.roadmaps.length === 0) return;
-  if (!confirm('Delete ALL roadmaps and all their lessons? This cannot be undone.')) return;
-
-  // Remove all cached lessons
-  state.roadmaps.forEach(rm => {
-    rm.nodes.forEach(n => {
-      try { localStorage.removeItem('rm_lesson_' + n.id); } catch {}
-    });
-  });
-
-  state.roadmaps = [];
-  state.activeRoadmapId = null;
-  saveState();
-  closeRoadmapSwitcher();
-  showSetupView();
-}
-
 // ── Existing roadmaps list (shown in setup view) ──
 function renderExistingRoadmaps() {
   if (state.roadmaps.length === 0) {
@@ -1086,12 +1027,6 @@ function updateRoadmapSwitcher() {
       </div>`;
   });
 
-  // Add "Delete All" button at the bottom if there are roadmaps
-  if (state.roadmaps.length > 0) {
-    html += `<div class="switcher-item switcher-remove-all" id="remove-all-switcher-btn">
-      <span><i class="fa-solid fa-trash-can"></i> Delete All Roadmaps</span>
-    </div>`;
-  }
 
   roadmapSwitcher.innerHTML = html;
 
@@ -1135,14 +1070,6 @@ function updateRoadmapSwitcher() {
     });
   });
 
-  // "Delete All" button in switcher
-  const removeAllSwitcher = document.getElementById('remove-all-switcher-btn');
-  if (removeAllSwitcher) {
-    removeAllSwitcher.addEventListener('click', (e) => {
-      e.stopPropagation();
-      deleteAllRoadmaps();
-    });
-  }
 }
 
 function toggleRoadmapSwitcher() {
@@ -1165,19 +1092,6 @@ document.addEventListener('click', (e) => {
 
 headerTitleText.addEventListener('click', toggleRoadmapSwitcher);
 headerArrow.addEventListener('click', toggleRoadmapSwitcher);
-
-// ── "Delete All" button event listeners ──
-removeAllSetupBtn.addEventListener('click', deleteAllRoadmaps);
-removeAllGraphBtn.addEventListener('click', deleteAllRoadmaps);
-
-// ── Suggestion pills ──
-document.querySelectorAll('#roadmap-suggestions .suggestion-pill').forEach(pill => {
-  pill.addEventListener('click', () => {
-    inputEl.value = pill.dataset.text;
-    document.querySelectorAll('#roadmap-suggestions .suggestion-pill').forEach(p => p.classList.remove('selected'));
-    pill.classList.add('selected');
-  });
-});
 
 // ── Generate roadmap ──
 generateBtn.addEventListener('click', generate);
