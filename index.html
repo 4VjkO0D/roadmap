@@ -1302,6 +1302,11 @@ function saveLesson(nodeId, content) {
   LS.set('rm_lesson_' + nodeId, content);
 }
 
+// ── Edge blocker helpers ──
+const edgeBlocker = document.getElementById('edge-blocker');
+function showEdgeBlocker() { edgeBlocker.style.display = 'block'; }
+function hideEdgeBlocker() { edgeBlocker.style.display = 'none'; }
+
 // ── Open lesson ──
 async function openLesson(nodeId) {
   const active = getActiveRoadmap();
@@ -1315,6 +1320,8 @@ async function openLesson(nodeId) {
   lessonChat.innerHTML = '';
   lessonInput.value = '';
   lessonPanel.classList.add('open');
+  history.pushState({ panelOpen: true }, '');
+  showEdgeBlocker();
 
   const cached = getLesson(nodeId);
   if (cached) {
@@ -1567,33 +1574,20 @@ saveApiBtn.addEventListener('click', () => {
 // ── Expose for inline onclick ──
 window.ROADMAP = { openLesson };
 
-// ── Intercept swipe-back / back-button ──
-// NOW at the bottom, after window.ROADMAP is defined
-const edgeBlocker = document.getElementById('edge-blocker');
-
-function showEdgeBlocker() {
-  edgeBlocker.style.display = 'block';
-}
-function hideEdgeBlocker() {
-  edgeBlocker.style.display = 'none';
-}
-
-function pushPanelState() {
+// ── Also push state when AI config panel opens ──
+const _origAiConfigBtnClick = aiConfigBtn.click;
+aiConfigBtn.addEventListener('click', () => {
   history.pushState({ panelOpen: true }, '');
-}
-
-const _origOpenLesson = window.ROADMAP.openLesson;
-window.ROADMAP.openLesson = function(nodeId) {
-  pushPanelState();
   showEdgeBlocker();
-  return _origOpenLesson(nodeId);
-};
+});
+// Intercept aiConfigBtn's own handler is fine since it calls openAiConfig which just adds class
 
-const _origOpenAi = openAiConfig;
+// Override openAiConfig to push history + show blocker
+const _origOpenAiCfg = openAiConfig;
 openAiConfig = function() {
-  pushPanelState();
+  history.pushState({ panelOpen: true }, '');
   showEdgeBlocker();
-  return _origOpenAi();
+  return _origOpenAiCfg();
 };
 
 // Hide blocker when panels close via back buttons
