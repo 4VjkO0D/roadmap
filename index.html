@@ -1556,6 +1556,76 @@ const edgeBlocker = document.getElementById('edge-blocker');
 function showEdgeBlocker() { edgeBlocker.style.display = 'block'; }
 function hideEdgeBlocker() { edgeBlocker.style.display = 'none'; }
 
+/**
+ * Protect bare LaTeX commands in text before markdown processing.
+ * Handles: \frac{x}{y}, \sqrt{x}, \text{foo}, \infty, \ge, \mathbb{R}, etc.
+ * Also handles escape sequences: \$ \% \& \# \_ \{ \}
+ */
+function protectBareLatex(html, protectedBlocks) {
+  // Step 1: Protect LaTeX escape sequences (\$ \% \& \# \_ \{ \})
+  html = html.replace(/(?<!\x00)\\([$%&#_{}])/g, (m, ch) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${ch}</span>`);
+    return `\x00MATHINLINE${idx}\x00`;
+  });
+
+  // Step 2: Protect \command{arg1}{arg2}... (brace-matched) — eg \frac{x}{y}, \sqrt{x}, \text{run}
+  // Must do this before simple commands to avoid partial matches
+  html = html.replace(/(?<!\x00)\\([a-zA-Z]+)((?:{[^{}]*(?:(?:{[^{}]*})*[^{}]*)?})*)/g, (match, cmd, args) => {
+    // If args contain braces, it's a LaTeX command with arguments
+    if (args && args.includes('{')) {
+      const idx = protectedBlocks.length;
+      protectedBlocks.push(`<span class="math">${match}</span>`);
+      return `\x00MATHINLINE${idx}\x00`;
+    }
+    // Simple \command without args — check if it's a likely LaTeX command
+    // (followed by space, punctuation, line end, or another backslash)
+    return match; // We'll handle these in step 3
+  });
+
+  // Step 3: Protect standalone \command (no args) — eg \infty, \ge, \alpha
+  html = html.replace(/(?<!\x00)\\([a-zA-Z]+)(?=\s|[.,;:!?)\]\-+=*/\\]|$)/g, (match, cmd) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${match}</span>`);
+    return `\x00MATHINLINE${idx}\x00`;
+  });
+
+  // Step 4: Protect \command{ with proper brace counting for nested braces
+  // This handles complex cases like \frac{\sqrt{x+1}}{x-2}
+  const complexLatex = /(?<!\x00)\\([a-zA-Z]+)\{/g;
+  let m;
+  while ((m = complexLatex.exec(html)) !== null) {
+    const startIdx = m.index;
+    let braceCount = 0;
+    let endIdx = startIdx;
+    let inArgs = false;
+    for (let i = startIdx + m[0].length - 1; i < html.length; i++) {
+      if (html[i] === '{') { braceCount++; inArgs = true; }
+      else if (html[i] === '}') {
+        braceCount--;
+        if (braceCount === 0 && inArgs) {
+          endIdx = i + 1;
+          inArgs = false;
+          // Check if more args follow
+          if (i + 1 < html.length && html[i + 1] === '{') { continue; }
+          break;
+        }
+      }
+    }
+    if (endIdx > startIdx) {
+      const latexStr = html.substring(startIdx, endIdx);
+      // Skip if already protected
+      if (latexStr.includes('\x00')) continue;
+      const idx = protectedBlocks.length;
+      protectedBlocks.push(`<span class="math">${latexStr}</span>`);
+      html = html.substring(0, startIdx) + `\x00MATHINLINE${idx}\x00` + html.substring(endIdx);
+      complexLatex.lastIndex = startIdx + `\x00MATHINLINE${idx}\x00`.length;
+    }
+  }
+
+  return html;
+}
+
 // ── Open lesson ──
 async function openLesson(nodeId) {
   const active = getActiveRoadmap();
@@ -1683,18 +1753,8 @@ function renderMarkdown(text) {
     return `\x00MATHINLINE${idx}\x00`;
   });
 
-  // Protect bare LaTeX commands (eg \infty, \frac{1}{x}, \sqrt{x}, \ge, \cup, \neq, \Rightarrow, etc.)
-  // Matches \commandname followed by optional {arg}{arg}... groups
-  html = html.replace(/\\([a-zA-Z]+)((?:{[^}]*})*)/g, (match, cmd, args) => {
-    // Only match known/common LaTeX commands to avoid false positives
-    const knownCommands = /^(infty|frac|sqrt|sqrt\[|ge|le|neq|approx|equiv|sim|pm|mp|times|div|cdot|ast|star|cup|cap|setminus|subset|supset|subseteq|supseteq|in|notin|ni|forall|exists|emptyset|varnothing|aleph|nabla|partial|infty|propto|parallel|perp|angle|triangle|Rightarrow|rightarrow|to|Leftarrow|leftarrow|Leftrightarrow|leftrightarrow|implies|iff|mapsto|longrightarrow|Longrightarrow|longmapsto|mathbb|mathbf|mathcal|mathit|mathrm|mathfrak|mathscr|sum|prod|int|oint|iint|iiint|lim|max|min|sup|inf|det|gcd|log|ln|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|dim|deg|hom|ker|Pr|bigcup|bigcap|bigvee|bigwedge|bigoplus|bigotimes|bigodot|biguplus|ldots|cdots|vdots|ddots|dots|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|varepsilon|vartheta|varphi|varpi|varrho|varsigma|ell|wp|Re|Im|top|bot|land|lor|lnot|neg|wedge|vee|oplus|ominus|otimes|oslash|odot|dagger|ddagger|S|check|hat|tilde|bar|vec|dot|ddot|widehat|widetilde|overline|underline|overbrace|underbrace|boxed|big|Big|bigg|Bigg|left|right|middle|langle|rangle|lbrace|rbrace|lbrack|rbrack|lceil|rceil|lfloor|rfloor|vert|Vert)$/;
-    if (knownCommands.test(cmd)) {
-      const idx = protectedBlocks.length;
-      protectedBlocks.push(`<span class="math">${match}</span>`);
-      return `\x00MATHINLINE${idx}\x00`;
-    }
-    return match;
-  });
+  // Protect bare LaTeX commands and escape sequences
+  html = protectBareLatex(html, protectedBlocks);
 
   // Protect ``` code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
@@ -1839,16 +1899,8 @@ function renderChatMarkdown(text) {
     return `\x00MATH${idx}\x00`;
   });
 
-  // Protect bare LaTeX commands
-  html = html.replace(/\\([a-zA-Z]+)((?:{[^}]*})*)/g, (match, cmd, args) => {
-    const knownCommands = /^(infty|frac|sqrt|sqrt\[|ge|le|neq|approx|equiv|sim|pm|mp|times|div|cdot|ast|star|cup|cap|setminus|subset|supset|subseteq|supseteq|in|notin|ni|forall|exists|emptyset|varnothing|aleph|nabla|partial|infty|propto|parallel|perp|angle|triangle|Rightarrow|rightarrow|to|Leftarrow|leftarrow|Leftrightarrow|leftrightarrow|implies|iff|mapsto|longrightarrow|Longrightarrow|longmapsto|mathbb|mathbf|mathcal|mathit|mathrm|mathfrak|mathscr|sum|prod|int|oint|iint|iiint|lim|max|min|sup|inf|det|gcd|log|ln|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|dim|deg|hom|ker|Pr|bigcup|bigcap|bigvee|bigwedge|bigoplus|bigotimes|bigodot|biguplus|ldots|cdots|vdots|ddots|dots|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|varepsilon|vartheta|varphi|varpi|varrho|varsigma|ell|wp|Re|Im|top|bot|land|lor|lnot|neg|wedge|vee|oplus|ominus|otimes|oslash|odot|dagger|ddagger|S|check|hat|tilde|bar|vec|dot|ddot|widehat|widetilde|overline|underline|overbrace|underbrace|boxed|big|Big|bigg|Bigg|left|right|middle|langle|rangle|lbrace|rbrace|lbrack|rbrack|lceil|rceil|lfloor|rfloor|vert|Vert)$/;
-    if (knownCommands.test(cmd)) {
-      const idx = protectedBlocks.length;
-      protectedBlocks.push(`<span class="math">${match}</span>`);
-      return `\x00MATH${idx}\x00`;
-    }
-    return match;
-  });
+  // Protect bare LaTeX commands and escape sequences
+  html = protectBareLatex(html, protectedBlocks);
 
   // Code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
@@ -2148,16 +2200,8 @@ function renderQAMarkdown(text) {
     return `\x00MATH${idx}\x00`;
   });
 
-  // Protect bare LaTeX commands
-  html = html.replace(/\\([a-zA-Z]+)((?:{[^}]*})*)/g, (match, cmd, args) => {
-    const knownCommands = /^(infty|frac|sqrt|sqrt\[|ge|le|neq|approx|equiv|sim|pm|mp|times|div|cdot|ast|star|cup|cap|setminus|subset|supset|subseteq|supseteq|in|notin|ni|forall|exists|emptyset|varnothing|aleph|nabla|partial|infty|propto|parallel|perp|angle|triangle|Rightarrow|rightarrow|to|Leftarrow|leftarrow|Leftrightarrow|leftrightarrow|implies|iff|mapsto|longrightarrow|Longrightarrow|longmapsto|mathbb|mathbf|mathcal|mathit|mathrm|mathfrak|mathscr|sum|prod|int|oint|iint|iiint|lim|max|min|sup|inf|det|gcd|log|ln|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|dim|deg|hom|ker|Pr|bigcup|bigcap|bigvee|bigwedge|bigoplus|bigotimes|bigodot|biguplus|ldots|cdots|vdots|ddots|dots|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|varepsilon|vartheta|varphi|varpi|varrho|varsigma|ell|wp|Re|Im|top|bot|land|lor|lnot|neg|wedge|vee|oplus|ominus|otimes|oslash|odot|dagger|ddagger|S|check|hat|tilde|bar|vec|dot|ddot|widehat|widetilde|overline|underline|overbrace|underbrace|boxed|big|Big|bigg|Bigg|left|right|middle|langle|rangle|lbrace|rbrace|lbrack|rbrack|lceil|rceil|lfloor|rfloor|vert|Vert)$/;
-    if (knownCommands.test(cmd)) {
-      const idx = protectedBlocks.length;
-      protectedBlocks.push(`<span class="math">${match}</span>`);
-      return `\x00MATH${idx}\x00`;
-    }
-    return match;
-  });
+  // Protect bare LaTeX commands and escape sequences
+  html = protectBareLatex(html, protectedBlocks);
 
   // Code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
