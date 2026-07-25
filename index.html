@@ -1652,73 +1652,58 @@ function showEdgeBlocker() { edgeBlocker.style.display = 'block'; }
 function hideEdgeBlocker() { edgeBlocker.style.display = 'none'; }
 
 /**
- * Protect bare LaTeX commands in text before markdown processing.
- * Handles: \frac{x}{y}, \sqrt{x}, \text{foo}, \infty, \ge, \mathbb{R}, etc.
- * Also handles escape sequences: \$ \% \& \# \_ \{ \}
+ * For legacy lessons that have raw LaTeX commands (eg \frac{x}{y}, \infty, \sqrt{x})
+ * without $ delimiters — auto-wrap them in $...$ so KaTeX can render them.
  */
-function protectBareLatex(html, protectedBlocks) {
-  // Step 1: Protect LaTeX escape sequences (\$ \% \& \# \_ \{ \})
-  html = html.replace(/(?<!\x00)\\([$%&#_{}])/g, (m, ch) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${ch}</span>`);
-    return `\x00MATHINLINE${idx}\x00`;
-  });
+function sanitizeLegacyMath(text) {
+  // Already has delimiters — leave it
+  if (/\$|\\\(|\\\[/.test(text)) return text;
 
-  // Step 2: Protect \command{arg1}{arg2}... (brace-matched) — eg \frac{x}{y}, \sqrt{x}, \text{run}
-  // Must do this before simple commands to avoid partial matches
-  html = html.replace(/(?<!\x00)\\([a-zA-Z]+)((?:{[^{}]*(?:(?:{[^{}]*})*[^{}]*)?})*)/g, (match, cmd, args) => {
-    // If args contain braces, it's a LaTeX command with arguments
-    if (args && args.includes('{')) {
-      const idx = protectedBlocks.length;
-      protectedBlocks.push(`<span class="math">${match}</span>`);
-      return `\x00MATHINLINE${idx}\x00`;
-    }
-    // Simple \command without args — check if it's a likely LaTeX command
-    // (followed by space, punctuation, line end, or another backslash)
-    return match; // We'll handle these in step 3
-  });
-
-  // Step 3: Protect standalone \command (no args) — eg \infty, \ge, \alpha
-  html = html.replace(/(?<!\x00)\\([a-zA-Z]+)(?=\s|[.,;:!?)\]\-+=*/\\]|$)/g, (match, cmd) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${match}</span>`);
-    return `\x00MATHINLINE${idx}\x00`;
-  });
-
-  // Step 4: Protect \command{ with proper brace counting for nested braces
-  // This handles complex cases like \frac{\sqrt{x+1}}{x-2}
-  const complexLatex = /(?<!\x00)\\([a-zA-Z]+)\{/g;
-  let m;
-  while ((m = complexLatex.exec(html)) !== null) {
-    const startIdx = m.index;
-    let braceCount = 0;
-    let endIdx = startIdx;
-    let inArgs = false;
-    for (let i = startIdx + m[0].length - 1; i < html.length; i++) {
-      if (html[i] === '{') { braceCount++; inArgs = true; }
-      else if (html[i] === '}') {
-        braceCount--;
-        if (braceCount === 0 && inArgs) {
-          endIdx = i + 1;
-          inArgs = false;
-          // Check if more args follow
-          if (i + 1 < html.length && html[i + 1] === '{') { continue; }
-          break;
+  // Wrap \command{...} sequences (brace-counted)
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '\\' && i + 1 < text.length && /[a-zA-Z]/.test(text[i + 1])) {
+      // Find the full command name
+      let j = i + 1;
+      while (j < text.length && /[a-zA-Z]/.test(text[j])) j++;
+      const cmd = text.substring(i, j);
+      const startIdx = i;
+      // Check if followed by { — if so, brace-count to find the full expression
+      if (j < text.length && text[j] === '{') {
+        let braceCount = 0;
+        let endIdx = j;
+        for (let k = j; k < text.length; k++) {
+          if (text[k] === '{') braceCount++;
+          else if (text[k] === '}') {
+            braceCount--;
+            if (braceCount === 0) { endIdx = k + 1; break; }
+          }
         }
+        // Check for additional {args} (eg \frac{x}{y})
+        while (endIdx < text.length && text[endIdx] === '{') {
+          let braceCount2 = 0;
+          for (let k = endIdx; k < text.length; k++) {
+            if (text[k] === '{') braceCount2++;
+            else if (text[k] === '}') {
+              braceCount2--;
+              if (braceCount2 === 0) { endIdx = k + 1; break; }
+            }
+          }
+        }
+        result += '$' + text.substring(startIdx, endIdx) + '$';
+        i = endIdx;
+        continue;
       }
+      // Standalone command (eg \infty) — look ahead for word boundary
+      result += '$' + cmd + '$';
+      i = j;
+      continue;
     }
-    if (endIdx > startIdx) {
-      const latexStr = html.substring(startIdx, endIdx);
-      // Skip if already protected
-      if (latexStr.includes('\x00')) continue;
-      const idx = protectedBlocks.length;
-      protectedBlocks.push(`<span class="math">${latexStr}</span>`);
-      html = html.substring(0, startIdx) + `\x00MATHINLINE${idx}\x00` + html.substring(endIdx);
-      complexLatex.lastIndex = startIdx + `\x00MATHINLINE${idx}\x00`.length;
-    }
+    result += text[i];
+    i++;
   }
-
-  return html;
+  return result;
 }
 
 // ── Open lesson ──
@@ -1794,7 +1779,9 @@ Format in markdown with ## for section headers. Be comprehensive but accessible.
 
 function renderLessonContent(text, node) {
   const active = getActiveRoadmap();
-  const html = renderMarkdown(text);
+  // Sanitize legacy lessons that have raw LaTeX without $ delimiters
+  const cleaned = sanitizeLegacyMath(text);
+  const html = renderMarkdown(cleaned);
   const isCompleted = active && active.completed.includes(node.id);
   lessonContent.innerHTML = html +
     (isCompleted
@@ -1819,158 +1806,94 @@ function renderLessonContent(text, node) {
 }
 
 /**
- * Robust markdown renderer that properly handles:
- * - \( \) inline LaTeX and \[ \] display LaTeX
- * - $$ display math and $ inline math
- * - ``` code blocks and `inline code`
- * - **bold** and *italic*
- * - ## and ### headers
- * - Unordered lists (-), ordered lists (1.)
- * - Horizontal rules (---)
- * - Paragraphs (double newlines)
- * - Line breaks (single newlines)
+ * Minimal markdown renderer. Escapes HTML, protects $...$ and $$...$$
+ * blocks so KaTeX can render them later, then handles basic formatting.
  */
 function renderMarkdown(text) {
-  // Step 1: Escape HTML
   let html = escHtml(text);
-
-  // Step 2: Protect code blocks and math from further processing
   const protectedBlocks = [];
 
-  // Protect \[ \] display LaTeX
-  html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+  // Protect $$...$$ blocks (display math)
+  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
     const idx = protectedBlocks.length;
-    protectedBlocks.push(`<div class="math">${inner.trim()}</div>`);
-    return `\x00MATHBLOCK${idx}\x00`;
+    protectedBlocks.push(match);
+    return `\x00DSP${idx}\x00`;
   });
 
-  // Protect \( \) inline LaTeX
-  html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
+  // Protect $...$ blocks (inline math) — but not $$
+  html = html.replace(/(?<!\x00)\$([^\n$]+?)\$/g, (match) => {
     const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATHINLINE${idx}\x00`;
+    protectedBlocks.push(match);
+    return `\x00INL${idx}\x00`;
   });
-
-  // Protect $$ display math
-  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<div class="math">${inner.trim()}</div>`);
-    return `\x00MATHBLOCK${idx}\x00`;
-  });
-
-  // Protect $ inline math (but not $$)
-  html = html.replace(/(?<!\x00)\$([^\n$]+?)\$/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATHINLINE${idx}\x00`;
-  });
-
-  // Protect bare LaTeX commands and escape sequences
-  html = protectBareLatex(html, protectedBlocks);
 
   // Protect ``` code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<pre><code>${code}</code></pre>`);
-    return `\x00CODEBLOCK${idx}\x00`;
+    return `\x00PRE${idx}\x00`;
   });
 
   // Protect `inline code`
   html = html.replace(/`([^`]+)`/g, (match, code) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<code>${code}</code>`);
-    return `\x00CODEINLINE${idx}\x00`;
+    return `\x00COD${idx}\x00`;
   });
 
-  // Step 3: Process markdown formatting on the remaining text
-  // Bold
+  // Markdown formatting (on non-protected text)
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Italic (single *, but not inside words like f(x) = x^2 *something)
   html = html.replace(/(?<!\w)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
-
-  // Headers (must be at start of line)
   html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-  // Horizontal rules
   html = html.replace(/^---+$/gm, '<hr>');
 
-  // Step 4: Process lists and paragraphs
+  // Process lists and paragraphs
   const lines = html.split('\n');
   let result = [];
-  let inUl = false;
-  let inOl = false;
-  let inParagraph = false;
+  let inUl = false, inOl = false, inP = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    // Check for protected block markers
-    const isProtected = /\x00(MATHBLOCK|MATHINLINE|CODEBLOCK|CODEINLINE)\d+\x00/.test(trimmed);
-
-    // Unordered list item
+    const trimmed = lines[i].trim();
+    const isProtected = /\x00(DSP|INL|PRE|COD)\d+\x00/.test(trimmed);
     const ulMatch = trimmed.match(/^[-*]\s+(.+)/);
-    // Ordered list item
     const olMatch = trimmed.match(/^\d+\.\s+(.+)/);
 
     if (ulMatch) {
       if (inOl) { result.push('</ol>'); inOl = false; }
-      if (inParagraph) { result.push('</p>'); inParagraph = false; }
+      if (inP) { result.push('</p>'); inP = false; }
       if (!inUl) { result.push('<ul>'); inUl = true; }
       result.push(`<li>${ulMatch[1]}</li>`);
     } else if (olMatch) {
       if (inUl) { result.push('</ul>'); inUl = false; }
-      if (inParagraph) { result.push('</p>'); inParagraph = false; }
+      if (inP) { result.push('</p>'); inP = false; }
       if (!inOl) { result.push('<ol>'); inOl = true; }
       result.push(`<li>${olMatch[1]}</li>`);
-    } else if (trimmed === '' || isProtected || trimmed.startsWith('<h') || trimmed.startsWith('<hr') || trimmed.startsWith('<pre') || trimmed.startsWith('<div class="math">')) {
-      // Close any open lists/paragraphs
+    } else if (trimmed === '' || isProtected || /^<[a-z]/.test(trimmed) || /^<hr/.test(trimmed) || /^<pre/.test(trimmed)) {
       if (inUl) { result.push('</ul>'); inUl = false; }
       if (inOl) { result.push('</ol>'); inOl = false; }
-      if (inParagraph) { result.push('</p>'); inParagraph = false; }
-      if (trimmed !== '') {
-        result.push(line);
-      }
+      if (inP) { result.push('</p>'); inP = false; }
+      if (trimmed !== '') result.push(lines[i]);
     } else {
-      // Regular text - paragraph or line break
       if (inUl) { result.push('</ul>'); inUl = false; }
       if (inOl) { result.push('</ol>'); inOl = false; }
-      if (!inParagraph) {
-        result.push('<p>');
-        inParagraph = true;
-        result.push(line);
-      } else {
-        result.push('<br>' + line);
-      }
+      if (!inP) { result.push('<p>'); inP = true; result.push(lines[i]); }
+      else { result.push('<br>' + lines[i]); }
     }
   }
-
   if (inUl) result.push('</ul>');
   if (inOl) result.push('</ol>');
-  if (inParagraph) result.push('</p>');
-
+  if (inP) result.push('</p>');
   html = result.join('\n');
 
-  // Step 5: Restore protected blocks
-  html = html.replace(/\x00MATHBLOCK(\d+)\x00/g, (match, idx) => {
-    return protectedBlocks[parseInt(idx)] || match;
-  });
-  html = html.replace(/\x00MATHINLINE(\d+)\x00/g, (match, idx) => {
-    return protectedBlocks[parseInt(idx)] || match;
-  });
-  html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, (match, idx) => {
-    return protectedBlocks[parseInt(idx)] || match;
-  });
-  html = html.replace(/\x00CODEINLINE(\d+)\x00/g, (match, idx) => {
-    return protectedBlocks[parseInt(idx)] || match;
-  });
-
-  // Clean up empty paragraphs
+  // Restore protected blocks ($$, $, code, pre)
+  html = html.replace(/\x00DSP(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
+  html = html.replace(/\x00INL(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
+  html = html.replace(/\x00PRE(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
+  html = html.replace(/\x00COD(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
   html = html.replace(/<p>\s*<\/p>/g, '');
-
   return html;
 }
 
@@ -1979,70 +1902,38 @@ function renderMarkdown(text) {
  */
 function renderChatMarkdown(text) {
   let html = escHtml(text);
-
-  // Protect math and code from formatting
   const protectedBlocks = [];
 
-  // \[ \] display LaTeX
-  html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+  // Protect $$...$$ and $...$  
+  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (m) => {
     const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
+    protectedBlocks.push(m);
+    return `\x00MTH${idx}\x00`;
+  });
+  html = html.replace(/(?<!\x00)\$([^\n$]+?)\$/g, (m) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(m);
+    return `\x00MTH${idx}\x00`;
   });
 
-  // \( \) inline LaTeX
-  html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
-  });
-
-  // $$ display math
-  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
-  });
-
-  // $ inline math
-  html = html.replace(/(?<!\x00)\$([^\n$]+?)\$/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
-  });
-
-  // Protect bare LaTeX commands and escape sequences
-  html = protectBareLatex(html, protectedBlocks);
-
-  // Code blocks
+  // Protect code
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<pre><code>${code}</code></pre>`);
-    return `\x00CODE${idx}\x00`;
+    return `\x00MTH${idx}\x00`;
   });
-
-  // Inline code
   html = html.replace(/`([^`]+)`/g, (match, code) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<code>${code}</code>`);
-    return `\x00CODE${idx}\x00`;
+    return `\x00MTH${idx}\x00`;
   });
 
-  // Bold/italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(?<!\w)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
-
-  // Lists
   html = html.replace(/^- (.+)/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>)(?:\s*<li>.*<\/li>)*/g, '<ul>$1</ul>');
-
-  // Line breaks
   html = html.replace(/\n/g, '<br>');
-
-  // Restore protected
-  html = html.replace(/\x00MATH(\d+)\x00/g, (match, idx) => protectedBlocks[parseInt(idx)] || match);
-  html = html.replace(/\x00CODE(\d+)\x00/g, (match, idx) => protectedBlocks[parseInt(idx)] || match);
-
+  html = html.replace(/\x00MTH(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
   return html;
 }
 
@@ -2283,71 +2174,48 @@ function setQAFilter(roadmapId) {
 
 function renderQAMarkdown(text) {
   let html = escHtml(text);
-
-  // Protect math — all LaTeX variants
   const protectedBlocks = [];
 
-  // \[ \] display LaTeX
-  html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+  // Protect $$...$$ and $...$
+  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (m) => {
     const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
+    protectedBlocks.push(m);
+    return `\x00DSP${idx}\x00`;
+  });
+  html = html.replace(/(?<!\x00)\$([^\n$]+?)\$/g, (m) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(m);
+    return `\x00INL${idx}\x00`;
   });
 
-  // \( \) inline LaTeX
-  html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
-  });
-
-  html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
-  });
-  html = html.replace(/(?<!\x00)\$([^\n$]+?)\$/g, (match, inner) => {
-    const idx = protectedBlocks.length;
-    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
-    return `\x00MATH${idx}\x00`;
-  });
-
-  // Protect bare LaTeX commands and escape sequences
-  html = protectBareLatex(html, protectedBlocks);
-
-  // Code blocks
+  // Protect code
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<pre><code>${code}</code></pre>`);
-    return `\x00CODE${idx}\x00`;
+    return `\x00MTH${idx}\x00`;
   });
   html = html.replace(/`([^`]+)`/g, (match, code) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<code>${code}</code>`);
-    return `\x00CODE${idx}\x00`;
+    return `\x00MTH${idx}\x00`;
   });
 
-  // Bold/italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(?<!\w)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
-
-  // Lists
   html = html.replace(/^- (.+)/gm, '<li>$1</li>');
   html = html.replace(/(<li>.*<\/li>)(?:\s*<li>.*<\/li>)*/g, '<ul>$1</ul>');
 
-  // Paragraphs and line breaks
   const paragraphs = html.split(/\n\n+/);
   html = paragraphs.map(p => {
     const t = p.trim();
     if (!t) return '';
-    if (t.startsWith('<') && !t.startsWith('<p>')) return t;
+    if (/^<[a-z\/]/.test(t)) return t;
     return `<p>${t.replace(/\n/g, '<br>')}</p>`;
   }).join('\n');
 
-  // Restore protected
-  html = html.replace(/\x00MATH(\d+)\x00/g, (match, idx) => protectedBlocks[parseInt(idx)] || match);
-  html = html.replace(/\x00CODE(\d+)\x00/g, (match, idx) => protectedBlocks[parseInt(idx)] || match);
-
+  html = html.replace(/\x00DSP(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
+  html = html.replace(/\x00INL(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
+  html = html.replace(/\x00MTH(\d+)\x00/g, (m, idx) => protectedBlocks[parseInt(idx)] || m);
   return html;
 }
 
