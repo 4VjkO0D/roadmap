@@ -1634,12 +1634,16 @@ function renderGraph() {
   });
 }
 
-// ── Lesson storage ──
-function getLesson(nodeId) {
-  return LS.get('rm_lesson_' + nodeId, null);
+// ── Lesson storage (scoped per roadmap to prevent cross-contamination) ──
+function getLesson(nodeId, roadmapOverrideId) {
+  const active = getActiveRoadmap();
+  const rmId = roadmapOverrideId || (active ? active.id : 'unknown');
+  return LS.get('rm_lesson_' + rmId + '_' + nodeId, null);
 }
-function saveLesson(nodeId, content) {
-  LS.set('rm_lesson_' + nodeId, content);
+function saveLesson(nodeId, content, roadmapOverrideId) {
+  const active = getActiveRoadmap();
+  const rmId = roadmapOverrideId || (active ? active.id : 'unknown');
+  LS.set('rm_lesson_' + rmId + '_' + nodeId, content);
 }
 
 // ── Edge blocker helpers ──
