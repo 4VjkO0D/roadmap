@@ -1683,6 +1683,19 @@ function renderMarkdown(text) {
     return `\x00MATHINLINE${idx}\x00`;
   });
 
+  // Protect bare LaTeX commands (eg \infty, \frac{1}{x}, \sqrt{x}, \ge, \cup, \neq, \Rightarrow, etc.)
+  // Matches \commandname followed by optional {arg}{arg}... groups
+  html = html.replace(/\\([a-zA-Z]+)((?:{[^}]*})*)/g, (match, cmd, args) => {
+    // Only match known/common LaTeX commands to avoid false positives
+    const knownCommands = /^(infty|frac|sqrt|sqrt\[|ge|le|neq|approx|equiv|sim|pm|mp|times|div|cdot|ast|star|cup|cap|setminus|subset|supset|subseteq|supseteq|in|notin|ni|forall|exists|emptyset|varnothing|aleph|nabla|partial|infty|propto|parallel|perp|angle|triangle|Rightarrow|rightarrow|to|Leftarrow|leftarrow|Leftrightarrow|leftrightarrow|implies|iff|mapsto|longrightarrow|Longrightarrow|longmapsto|mathbb|mathbf|mathcal|mathit|mathrm|mathfrak|mathscr|sum|prod|int|oint|iint|iiint|lim|max|min|sup|inf|det|gcd|log|ln|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|dim|deg|hom|ker|Pr|bigcup|bigcap|bigvee|bigwedge|bigoplus|bigotimes|bigodot|biguplus|ldots|cdots|vdots|ddots|dots|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|varepsilon|vartheta|varphi|varpi|varrho|varsigma|ell|wp|Re|Im|top|bot|land|lor|lnot|neg|wedge|vee|oplus|ominus|otimes|oslash|odot|dagger|ddagger|S|check|hat|tilde|bar|vec|dot|ddot|widehat|widetilde|overline|underline|overbrace|underbrace|boxed|big|Big|bigg|Bigg|left|right|middle|langle|rangle|lbrace|rbrace|lbrack|rbrack|lceil|rceil|lfloor|rfloor|vert|Vert)$/;
+    if (knownCommands.test(cmd)) {
+      const idx = protectedBlocks.length;
+      protectedBlocks.push(`<span class="math">${match}</span>`);
+      return `\x00MATHINLINE${idx}\x00`;
+    }
+    return match;
+  });
+
   // Protect ``` code blocks
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
     const idx = protectedBlocks.length;
@@ -1824,6 +1837,17 @@ function renderChatMarkdown(text) {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
     return `\x00MATH${idx}\x00`;
+  });
+
+  // Protect bare LaTeX commands
+  html = html.replace(/\\([a-zA-Z]+)((?:{[^}]*})*)/g, (match, cmd, args) => {
+    const knownCommands = /^(infty|frac|sqrt|sqrt\[|ge|le|neq|approx|equiv|sim|pm|mp|times|div|cdot|ast|star|cup|cap|setminus|subset|supset|subseteq|supseteq|in|notin|ni|forall|exists|emptyset|varnothing|aleph|nabla|partial|infty|propto|parallel|perp|angle|triangle|Rightarrow|rightarrow|to|Leftarrow|leftarrow|Leftrightarrow|leftrightarrow|implies|iff|mapsto|longrightarrow|Longrightarrow|longmapsto|mathbb|mathbf|mathcal|mathit|mathrm|mathfrak|mathscr|sum|prod|int|oint|iint|iiint|lim|max|min|sup|inf|det|gcd|log|ln|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|dim|deg|hom|ker|Pr|bigcup|bigcap|bigvee|bigwedge|bigoplus|bigotimes|bigodot|biguplus|ldots|cdots|vdots|ddots|dots|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|varepsilon|vartheta|varphi|varpi|varrho|varsigma|ell|wp|Re|Im|top|bot|land|lor|lnot|neg|wedge|vee|oplus|ominus|otimes|oslash|odot|dagger|ddagger|S|check|hat|tilde|bar|vec|dot|ddot|widehat|widetilde|overline|underline|overbrace|underbrace|boxed|big|Big|bigg|Bigg|left|right|middle|langle|rangle|lbrace|rbrace|lbrack|rbrack|lceil|rceil|lfloor|rfloor|vert|Vert)$/;
+    if (knownCommands.test(cmd)) {
+      const idx = protectedBlocks.length;
+      protectedBlocks.push(`<span class="math">${match}</span>`);
+      return `\x00MATH${idx}\x00`;
+    }
+    return match;
   });
 
   // Code blocks
@@ -2122,6 +2146,17 @@ function renderQAMarkdown(text) {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
     return `\x00MATH${idx}\x00`;
+  });
+
+  // Protect bare LaTeX commands
+  html = html.replace(/\\([a-zA-Z]+)((?:{[^}]*})*)/g, (match, cmd, args) => {
+    const knownCommands = /^(infty|frac|sqrt|sqrt\[|ge|le|neq|approx|equiv|sim|pm|mp|times|div|cdot|ast|star|cup|cap|setminus|subset|supset|subseteq|supseteq|in|notin|ni|forall|exists|emptyset|varnothing|aleph|nabla|partial|infty|propto|parallel|perp|angle|triangle|Rightarrow|rightarrow|to|Leftarrow|leftarrow|Leftrightarrow|leftrightarrow|implies|iff|mapsto|longrightarrow|Longrightarrow|longmapsto|mathbb|mathbf|mathcal|mathit|mathrm|mathfrak|mathscr|sum|prod|int|oint|iint|iiint|lim|max|min|sup|inf|det|gcd|log|ln|sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|dim|deg|hom|ker|Pr|bigcup|bigcap|bigvee|bigwedge|bigoplus|bigotimes|bigodot|biguplus|ldots|cdots|vdots|ddots|dots|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|varepsilon|vartheta|varphi|varpi|varrho|varsigma|ell|wp|Re|Im|top|bot|land|lor|lnot|neg|wedge|vee|oplus|ominus|otimes|oslash|odot|dagger|ddagger|S|check|hat|tilde|bar|vec|dot|ddot|widehat|widetilde|overline|underline|overbrace|underbrace|boxed|big|Big|bigg|Bigg|left|right|middle|langle|rangle|lbrace|rbrace|lbrack|rbrack|lceil|rceil|lfloor|rfloor|vert|Vert)$/;
+    if (knownCommands.test(cmd)) {
+      const idx = protectedBlocks.length;
+      protectedBlocks.push(`<span class="math">${match}</span>`);
+      return `\x00MATH${idx}\x00`;
+    }
+    return match;
   });
 
   // Code blocks
