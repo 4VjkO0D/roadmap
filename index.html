@@ -337,6 +337,166 @@
   }
   #ai-config-panel.open { transform: translateX(0); }
 
+  /* ══════════════════════════════════════════════════
+     FLASHCARD PANEL
+     ══════════════════════════════════════════════════ */
+  #flashcards-panel {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+  #flashcards-panel.open { transform: translateX(0); }
+  .fc-pick-bar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px 0;
+    flex-shrink: 0;
+  }
+  .fc-subject-select {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .fc-subject-select:focus { border-color: var(--accent); }
+  .fc-generate-btn {
+    padding: 8px 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity var(--transition);
+  }
+  .fc-generate-btn:hover { opacity: 0.85; }
+  .fc-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #fc-deck-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .fc-progress {
+    font-size: 12px;
+    color: var(--text-muted);
+    width: 100%;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .fc-score {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    width: 100%;
+    justify-content: center;
+  }
+  .fc-score span { color: var(--green); font-weight: 700; }
+  .fc-score .fc-wrong { color: var(--red); }
+  .fc-card {
+    width: 100%;
+    max-width: 340px;
+    min-height: 200px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    cursor: pointer;
+    transition: transform 0.3s ease, border-color var(--transition);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    user-select: none;
+  }
+  .fc-card:hover { border-color: var(--accent2); }
+  .fc-card.flipped { border-color: var(--green); }
+  .fc-card-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .fc-card-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 100%;
+  }
+  .fc-card-text strong { color: var(--accent2); }
+  .fc-card-text em { color: var(--amber); font-style: normal; }
+  .fc-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+  .fc-actions {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 340px;
+  }
+  .fc-actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: opacity var(--transition);
+  }
+  .fc-actions button:hover { opacity: 0.85; }
+  .fc-got-it { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid var(--green) !important; }
+  .fc-review { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid var(--red) !important; }
+  .fc-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+  }
+  .fc-empty i { font-size: 36px; margin-bottom: 12px; display: block; opacity: 0.4; }
+  .fc-done {
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text);
+  }
+  .fc-done i { font-size: 42px; margin-bottom: 12px; display: block; color: var(--green); }
+  .fc-done .fc-done-score { font-size: 16px; margin: 8px 0; }
+  .fc-restart {
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+
   #ai-config-panel .panel-header {
     height: var(--header-h);
     background: var(--surface);
@@ -967,6 +1127,7 @@
       <div id="roadmap-switcher"></div>
     </div>
     <div id="ai-status">
+      <button id="flashcards-btn" title="Flashcards"><i class="fa-regular fa-rectangle-list"></i></button>
       <button id="saved-qa-btn" title="Saved Q&A"><i class="fa-regular fa-bookmark"></i></button>
       <button id="ai-config-btn" title="AI Settings"><i class="fa-solid fa-gear"></i></button>
     </div>
@@ -1051,6 +1212,20 @@
 
 <!-- Left-edge blocker for swipe-back prevention -->
 <div id="edge-blocker" style="position:fixed;left:0;top:0;width:35px;height:100%;z-index:9999;display:none;"></div>
+
+  <!-- Flashcards Panel -->
+  <div id="flashcards-panel">
+    <div class="panel-header">
+      <button id="fc-back-btn" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+      <span class="panel-title">Flashcards</span>
+    </div>
+    <div id="fc-deck-area">
+      <div class="fc-empty">
+        <i class="fa-solid fa-rectangle-list"></i>
+        <div>Generate flashcards from your Q&A.</div>
+      </div>
+    </div>
+  </div>
 
   <div id="ai-config-panel">
     <div class="panel-header">
@@ -2263,6 +2438,257 @@ saveApiBtn.addEventListener('click', () => {
 
 // ── Expose for inline onclick ──
 window.ROADMAP = { openLesson, deleteQAEntry, clearAllQA, setQAFilter };
+
+// ═══════════════════════════════════════════
+// FLASHCARDS
+// ═══════════════════════════════════════════
+const flashcardsBtn  = document.getElementById('flashcards-btn');
+const flashcardsPanel = document.getElementById('flashcards-panel');
+const fcBackBtn      = document.getElementById('fc-back-btn');
+const fcDeckArea     = document.getElementById('fc-deck-area');
+
+let fcState = {
+  cards: [],           // [{q: string, a: string, nodeName: string}]
+  currentIdx: 0,
+  flipped: false,
+  gotIt: 0,
+  review: 0,
+  roadmapId: null
+};
+
+function openFlashcards() {
+  flashcardsPanel.classList.add('open');
+  showEdgeBlocker();
+  history.pushState({ panelOpen: true }, '');
+  renderFlashcardsPicker();
+}
+
+function closeFlashcards() {
+  flashcardsPanel.classList.remove('open');
+  hideEdgeBlocker();
+}
+
+function renderFlashcardsPicker() {
+  // Show picker if no cards loaded
+  const allEntries = getSavedQA();
+  if (allEntries.length === 0) {
+    fcDeckArea.innerHTML = `
+      <div class="fc-empty">
+        <i class="fa-solid fa-rectangle-list"></i>
+        <div>No Q&A saved yet. Ask questions in lessons first.</div>
+      </div>`;
+    fcState.cards = [];
+    return;
+  }
+
+  // Build roadmap chooser
+  const uniqueRoadmaps = [];
+  const seen = new Set();
+  allEntries.forEach(e => {
+    if (e.roadmapId && !seen.has(e.roadmapId)) {
+      seen.add(e.roadmapId);
+      const count = allEntries.filter(x => x.roadmapId === e.roadmapId).length;
+      uniqueRoadmaps.push({ id: e.roadmapId, subject: e.subject, count });
+    }
+  });
+
+  // If we already have cards, show deck UI instead
+  if (fcState.cards.length > 0) {
+    renderFlashcardDeck();
+    return;
+  }
+
+  let html = `<div class="fc-pick-bar">
+    <select class="fc-subject-select" id="fc-subject-select">
+      <option value="">Select roadmap…</option>`;
+  uniqueRoadmaps.forEach(rm => {
+    html += `<option value="${rm.id}">${escHtml(rm.subject)} (${rm.count} Q&A)</option>`;
+  });
+  html += `</select>
+    <button class="fc-generate-btn" id="fc-generate-btn" onclick="generateFlashcards()">Generate</button>
+  </div>`;
+
+  fcDeckArea.innerHTML = html;
+}
+
+async function generateFlashcards() {
+  const select = document.getElementById('fc-subject-select');
+  if (!select || !select.value) return;
+
+  const rmId = select.value;
+  fcState.roadmapId = rmId;
+
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) { openAiConfig(); return; }
+
+  const entries = getSavedQA().filter(e => e.roadmapId === rmId);
+  if (entries.length === 0) return;
+
+  // Build context from Q&A pairs
+  let qaContext = '';
+  entries.slice(0, 15).forEach((e, i) => {
+    qaContext += `Q${i + 1}: ${e.question}\nA${i + 1}: ${e.answer.slice(0, 300)}\n\n`;
+  });
+
+  const btn = document.getElementById('fc-generate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+
+  try {
+    const prompt = `Based on the following Q&A pairs from a student learning "${entries[0]?.subject || 'a subject'}", generate 8-12 flashcard questions to test their understanding.
+
+Q&A context:
+${qaContext}
+
+Instructions:
+- Each flashcard should test a concept the student struggled with or asked about
+- Format as a JSON array: [{"q": "Question text?", "a": "Answer text"}, ...]
+- Questions should be clear and direct, testing recall and understanding
+- Answers should be concise but complete
+- DO NOT number the questions — just the q/a text
+- Return ONLY the JSON array, no other text.`;
+
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-v4-flash',
+        max_tokens: 1500,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You generate flashcard question/answer pairs. Respond with valid JSON only.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const text = json.choices?.[0]?.message?.content || '';
+    let cards;
+    try {
+      cards = JSON.parse(text);
+    } catch {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) cards = JSON.parse(match[0]);
+      else throw new Error('Could not parse flashcards');
+    }
+
+    if (!Array.isArray(cards) || cards.length === 0) throw new Error('No cards generated');
+
+    // Shuffle
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+
+    fcState.cards = cards.map(c => ({ q: c.q || '?', a: c.a || 'See lesson' }));
+    fcState.currentIdx = 0;
+    fcState.flipped = false;
+    fcState.gotIt = 0;
+    fcState.review = 0;
+    renderFlashcardDeck();
+
+  } catch (e) {
+    alert('Failed to generate flashcards: ' + e.message);
+    renderFlashcardsPicker();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
+  }
+}
+
+function renderFlashcardDeck() {
+  const { cards, currentIdx, flipped, gotIt, review } = fcState;
+  const total = cards.length;
+
+  // Check if done
+  if (currentIdx >= total) {
+    const pct = total > 0 ? Math.round((gotIt / total) * 100) : 0;
+    fcDeckArea.innerHTML = `
+      <div class="fc-done">
+        <i class="fa-solid fa-trophy"></i>
+        <div class="fc-done-score">Session Complete!</div>
+        <div style="font-size:28px;font-weight:800;color:var(--green);margin:8px 0;">${gotIt}/${total}</div>
+        <div style="color:var(--text-muted);">${pct}% correct</div>
+        <div style="color:var(--text-muted);margin-top:4px;">${review} cards to review</div>
+        <button class="fc-restart" onclick="restartFlashcards()">Study Again</button>
+        <button class="fc-restart" style="margin-top:8px;background:var(--surface2);color:var(--text-muted);" onclick="closeFlashcards()">Close</button>
+      </div>`;
+    return;
+  }
+
+  const card = cards[currentIdx];
+
+  let html = '';
+  html += `<div class="fc-progress">Card ${currentIdx + 1} of ${total}</div>`;
+  html += `<div class="fc-score"><span>✓ ${gotIt}</span><span class="fc-wrong">↻ ${review}</span></div>`;
+
+  html += `<div class="fc-card${flipped ? ' flipped' : ''}" id="fc-card" onclick="flipCard()">`;
+  html += `<div class="fc-card-label">${flipped ? 'ANSWER' : 'QUESTION'}</div>`;
+  html += `<div class="fc-card-text">${flipped ? renderChatMarkdown(card.a) : escHtml(card.q)}</div>`;
+  if (!flipped) {
+    html += `<div class="fc-hint">Tap to reveal answer</div>`;
+  }
+  html += `</div>`;
+
+  if (flipped) {
+    html += `<div class="fc-actions">
+      <button class="fc-review" onclick="reviewCard()"><i class="fa-solid fa-arrow-rotate"></i> Review</button>
+      <button class="fc-got-it" onclick="gotItCard()"><i class="fa-solid fa-check"></i> Got It</button>
+    </div>`;
+  }
+
+  fcDeckArea.innerHTML = html;
+
+  // Render KaTeX in the card
+  if (typeof renderMathInElement !== 'undefined') {
+    setTimeout(() => {
+      try { renderMathInElement(fcDeckArea, { delimiters: [{left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false}, {left: "\\(", right: "\\)", display: false}, {left: "\\[", right: "\\]", display: true}], throwOnError: false }); } catch (e) {}
+    }, 10);
+  }
+}
+
+function flipCard() {
+  fcState.flipped = true;
+  renderFlashcardDeck();
+}
+
+function gotItCard() {
+  fcState.gotIt++;
+  advanceCard();
+}
+
+function reviewCard() {
+  fcState.review++;
+  // Add to end of deck for later review
+  if (fcState.currentIdx < fcState.cards.length) {
+    fcState.cards.push(fcState.cards[fcState.currentIdx]);
+  }
+  advanceCard();
+}
+
+function advanceCard() {
+  fcState.currentIdx++;
+  fcState.flipped = false;
+  renderFlashcardDeck();
+}
+
+function restartFlashcards() {
+  // Re-shuffle
+  const cards = fcState.cards;
+  for (let i = cards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+  fcState.currentIdx = 0;
+  fcState.flipped = false;
+  fcState.gotIt = 0;
+  fcState.review = 0;
+  renderFlashcardDeck();
+}
+
+flashcardsBtn.addEventListener('click', openFlashcards);
+fcBackBtn.addEventListener('click', closeFlashcards);
 
 // ── Also push state when AI config panel opens ──
 aiConfigBtn.addEventListener('click', () => {
