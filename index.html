@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Study Roadmap</title>
+<title>Roadmap</title>
+<meta name="application-name" content="Roadmap">
 
 <!-- PWA setup -->
 <link rel="manifest" href="manifest.json">
@@ -381,6 +382,34 @@
     transition: transform 0.25s cubic-bezier(.4,0,.2,1);
   }
   #saved-qa-panel.open { transform: translateX(0); }
+
+  .qa-filter-bar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px 0;
+    flex-shrink: 0;
+  }
+  .qa-filter-select {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    font-family: inherit;
+    appearance: auto;
+    cursor: pointer;
+    transition: border-color var(--transition);
+  }
+  .qa-filter-select:focus { border-color: var(--accent); }
+  .qa-filter-count {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 10px 0 4px;
+    text-align: center;
+  }
 
   .qa-entry {
     background: var(--surface);
@@ -930,12 +959,12 @@
   <header id="header">
     <div id="header-title">
       <i class="fa-solid fa-map"></i>
-      <span id="header-title-text">Study Roadmap</span>
+      <span id="header-title-text">Roadmap</span>
       <span class="header-arrow" id="header-arrow"><i class="fa-solid fa-chevron-down"></i></span>
       <div id="roadmap-switcher"></div>
     </div>
     <div id="ai-status">
-      <button id="saved-qa-btn" title="Saved Q&A"><i class="fa-solid fa-bookmark"></i></button>
+      <button id="saved-qa-btn" title="Saved Q&A"><i class="fa-regular fa-bookmark"></i></button>
       <button id="ai-config-btn" title="AI Settings"><i class="fa-solid fa-gear"></i></button>
     </div>
   </header>
@@ -1058,9 +1087,6 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 function escHtml(s) {
   return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"');
 }
-function escHtmlAttr(s) {
-  return String(s).replace(/&/g,'&').replace(/"/g,'"').replace(/</g,'<').replace(/>/g,'>');
-}
 
 // ── AI Proxy helpers ──
 function getProxyUrl() { return localStorage.getItem('rm_proxy_url') || ''; }
@@ -1079,14 +1105,15 @@ function saveQAEntry(entry) {
   const entries = getSavedQA();
   entries.unshift({
     id: uid(),
+    roadmapId: entry.roadmapId || null,
     subject: entry.subject || 'Unknown',
     nodeName: entry.nodeName || 'Unknown',
     question: entry.question,
     answer: entry.answer,
     timestamp: Date.now()
   });
-  // Keep max 200 entries
-  if (entries.length > 200) entries.length = 200;
+  // Keep max 500 entries
+  if (entries.length > 500) entries.length = 500;
   LS.set(QA_STORAGE_KEY, entries);
   updateSavedQABadge();
 }
@@ -1140,6 +1167,7 @@ const savedQAContent = document.getElementById('saved-qa-content');
 // ── State ──
 let state = { roadmaps: [], activeRoadmapId: null };
 let currentLessonNodeId = null;
+let qaFilterRoadmapId = '__all__'; // "all" or a specific roadmap ID
 
 function getActiveRoadmap() {
   return state.roadmaps.find(r => r.id === state.activeRoadmapId) || null;
@@ -1238,7 +1266,7 @@ function updateRoadmapSwitcher() {
   if (active) {
     headerTitleText.textContent = active.subject;
   } else {
-    headerTitleText.textContent = 'Study Roadmap';
+    headerTitleText.textContent = 'Roadmap';
   }
 
   let html = '';
@@ -1591,7 +1619,7 @@ Format in markdown with ## for section headers. Be comprehensive but accessible.
   } catch (e) {
     lessonContent.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--red);">
       <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;display:block;margin-bottom:12px;"></i>
-      Failed to generate lesson: ${e.message}
+      Failed to generate lesson: ${escHtml(e.message)}
       <br><br>
       <button onclick="ROADMAP.openLesson('${nodeId}')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;">Retry</button>
     </div>`;
@@ -1610,10 +1638,9 @@ function renderLessonContent(text, node) {
 
 /**
  * Robust markdown renderer that properly handles:
- * - $$ display math
- * - $ inline math
- * - ``` code blocks
- * - `inline code`
+ * - \( \) inline LaTeX and \[ \] display LaTeX
+ * - $$ display math and $ inline math
+ * - ``` code blocks and `inline code`
  * - **bold** and *italic*
  * - ## and ### headers
  * - Unordered lists (-), ordered lists (1.)
@@ -1627,6 +1654,20 @@ function renderMarkdown(text) {
 
   // Step 2: Protect code blocks and math from further processing
   const protectedBlocks = [];
+
+  // Protect \[ \] display LaTeX
+  html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<div class="math">${inner.trim()}</div>`);
+    return `\x00MATHBLOCK${idx}\x00`;
+  });
+
+  // Protect \( \) inline LaTeX
+  html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
+    return `\x00MATHINLINE${idx}\x00`;
+  });
 
   // Protect $$ display math
   html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
@@ -1717,7 +1758,6 @@ function renderMarkdown(text) {
         inParagraph = true;
         result.push(line);
       } else {
-        // Check if next line is also a paragraph (double newline before this)
         result.push('<br>' + line);
       }
     }
@@ -1750,13 +1790,27 @@ function renderMarkdown(text) {
 }
 
 /**
- * Lightweight markdown renderer for chat bubbles (no headers, no paragraphs)
+ * Lightweight markdown renderer for chat bubbles
  */
 function renderChatMarkdown(text) {
   let html = escHtml(text);
 
   // Protect math and code from formatting
   const protectedBlocks = [];
+
+  // \[ \] display LaTeX
+  html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
+    return `\x00MATH${idx}\x00`;
+  });
+
+  // \( \) inline LaTeX
+  html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
+    return `\x00MATH${idx}\x00`;
+  });
 
   // $$ display math
   html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
@@ -1901,8 +1955,9 @@ Answer clearly and conversationally. Be helpful but concise.`;
     const json = await res.json();
     const reply = json.choices?.[0]?.message?.content || 'Sorry, I couldn\'t answer that.';
 
-    // Save to Q&A history
+    // Save to Q&A history with roadmap ID
     saveQAEntry({
+      roadmapId: active.id,
       subject: active.subject,
       nodeName: node.name,
       question: text,
@@ -1919,7 +1974,7 @@ Answer clearly and conversationally. Be helpful but concise.`;
     typing.remove();
     const errMsg = document.createElement('div');
     errMsg.className = 'chat-msg assistant';
-    errMsg.innerHTML = `<div class="chat-bubble" style="color:var(--red);">Error: ${e.message}</div>`;
+    errMsg.innerHTML = `<div class="chat-bubble" style="color:var(--red);">Error: ${escHtml(e.message)}</div>`;
     lessonChat.appendChild(errMsg);
     lessonChat.scrollTop = lessonChat.scrollHeight;
   }
@@ -1943,6 +1998,8 @@ function openSavedQA() {
   savedQAPanel.classList.add('open');
   showEdgeBlocker();
   history.pushState({ panelOpen: true }, '');
+  // Reset filter to all when opening
+  qaFilterRoadmapId = '__all__';
   renderSavedQA();
 }
 
@@ -1952,8 +2009,8 @@ function closeSavedQA() {
 }
 
 function renderSavedQA() {
-  const entries = getSavedQA();
-  if (entries.length === 0) {
+  const allEntries = getSavedQA();
+  if (allEntries.length === 0) {
     savedQAContent.innerHTML = `
       <div class="qa-empty">
         <i class="fa-solid fa-bookmark"></i>
@@ -1963,39 +2020,99 @@ function renderSavedQA() {
     return;
   }
 
-  let html = `<button class="qa-clear-all" onclick="clearAllQA()"><i class="fa-solid fa-trash-can"></i> Clear All</button>`;
+  // Filter entries
+  let entries = allEntries;
+  if (qaFilterRoadmapId !== '__all__') {
+    entries = allEntries.filter(e => e.roadmapId === qaFilterRoadmapId);
+  }
 
-  entries.forEach((entry, idx) => {
-    const date = new Date(entry.timestamp);
-    const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    html += `
-      <div class="qa-entry">
-        <div class="qa-entry-header">
-          <span class="qa-subject">📚 ${escHtml(entry.subject)} — ${escHtml(entry.nodeName)}</span>
-          <span class="qa-date">${dateStr}</span>
-        </div>
-        <div class="qa-question">
-          <i class="fa-regular fa-circle-question"></i>
-          <div class="qa-question-text">${escHtml(entry.question)}</div>
-        </div>
-        <div class="qa-answer">
-          <i class="fa-solid fa-reply"></i>
-          <div class="qa-answer-text">${renderQAMarkdown(entry.answer)}</div>
-        </div>
-        <div style="padding:2px 14px 10px;text-align:right;">
-          <button class="qa-delete-btn" onclick="deleteQAEntry('${entry.id}')" title="Delete"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>`;
+  // Build filter dropdown, collecting unique roadmap subjects from all entries
+  const uniqueRoadmaps = [];
+  const seen = new Set();
+  allEntries.forEach(e => {
+    if (e.roadmapId && !seen.has(e.roadmapId)) {
+      seen.add(e.roadmapId);
+      uniqueRoadmaps.push({ id: e.roadmapId, subject: e.subject });
+    }
   });
 
+  let html = '';
+
+  // Filter bar
+  html += `<div class="qa-filter-bar">
+    <select class="qa-filter-select" id="qa-filter-select" onchange="setQAFilter(this.value)">
+      <option value="__all__"${qaFilterRoadmapId === '__all__' ? ' selected' : ''}>All Roadmaps (${allEntries.length})</option>`;
+  uniqueRoadmaps.forEach(rm => {
+    const count = allEntries.filter(e => e.roadmapId === rm.id).length;
+    html += `<option value="${rm.id}"${qaFilterRoadmapId === rm.id ? ' selected' : ''}>${escHtml(rm.subject)} (${count})</option>`;
+  });
+  html += `</select></div>`;
+
+  // Clear all button
+  html += `<button class="qa-clear-all" onclick="clearAllQA()"><i class="fa-solid fa-trash-can"></i> Clear All</button>`;
+
+  // Count display
+  html += `<div class="qa-filter-count">Showing ${entries.length} of ${allEntries.length} entries</div>`;
+
+  if (entries.length === 0) {
+    html += `
+      <div class="qa-empty" style="padding:24px 20px;">
+        <div>No entries for this roadmap.</div>
+        <div style="margin-top:6px;font-size:12px;">Switch the filter or clear it to see all.</div>
+      </div>`;
+  } else {
+    entries.forEach((entry, idx) => {
+      const date = new Date(entry.timestamp);
+      const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      html += `
+        <div class="qa-entry">
+          <div class="qa-entry-header">
+            <span class="qa-subject">📚 ${escHtml(entry.subject)} — ${escHtml(entry.nodeName)}</span>
+            <span class="qa-date">${dateStr}</span>
+          </div>
+          <div class="qa-question">
+            <i class="fa-regular fa-circle-question"></i>
+            <div class="qa-question-text">${escHtml(entry.question)}</div>
+          </div>
+          <div class="qa-answer">
+            <i class="fa-solid fa-reply"></i>
+            <div class="qa-answer-text">${renderQAMarkdown(entry.answer)}</div>
+          </div>
+          <div style="padding:2px 14px 10px;text-align:right;">
+            <button class="qa-delete-btn" onclick="deleteQAEntry('${entry.id}')" title="Delete"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>`;
+    });
+  }
+
   savedQAContent.innerHTML = html;
+}
+
+function setQAFilter(roadmapId) {
+  qaFilterRoadmapId = roadmapId;
+  renderSavedQA();
 }
 
 function renderQAMarkdown(text) {
   let html = escHtml(text);
 
-  // Protect math
+  // Protect math — all LaTeX variants
   const protectedBlocks = [];
+
+  // \[ \] display LaTeX
+  html = html.replace(/\\\[([\s\S]*?)\\\]/g, (match, inner) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
+    return `\x00MATH${idx}\x00`;
+  });
+
+  // \( \) inline LaTeX
+  html = html.replace(/\\\(([\s\S]*?)\\\)/g, (match, inner) => {
+    const idx = protectedBlocks.length;
+    protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
+    return `\x00MATH${idx}\x00`;
+  });
+
   html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, inner) => {
     const idx = protectedBlocks.length;
     protectedBlocks.push(`<span class="math">${inner.trim()}</span>`);
@@ -2086,15 +2203,13 @@ saveApiBtn.addEventListener('click', () => {
 });
 
 // ── Expose for inline onclick ──
-window.ROADMAP = { openLesson };
+window.ROADMAP = { openLesson, deleteQAEntry, clearAllQA, setQAFilter };
 
 // ── Also push state when AI config panel opens ──
-const _origAiConfigBtnClick = aiConfigBtn.click;
 aiConfigBtn.addEventListener('click', () => {
   history.pushState({ panelOpen: true }, '');
   showEdgeBlocker();
 });
-// Intercept aiConfigBtn's own handler is fine since it calls openAiConfig which just adds class
 
 // Override openAiConfig to push history + show blocker
 const _origOpenAiCfg = openAiConfig;
