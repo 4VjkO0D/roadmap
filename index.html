@@ -16,6 +16,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
 <style>
   /* ── Reset & Base ── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1459,8 +1462,96 @@ Make the roadmap complete and accurate for learning this topic from scratch.`;
 newBtn.addEventListener('click', () => {
   showSetupView();
 });
-regenBtn.addEventListener('click', () => {
-  showSetupView();
+regenBtn.addEventListener('click', async () => {
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) { openAiConfig(); return; }
+
+  regenBtn.disabled = true;
+  regenBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Regenerating…';
+
+  const prompt = `Create a bottom-up study roadmap for the following subject/topic:
+
+"${active.subject}"
+
+Instructions:
+1. Break this subject down into 8-15 concepts/nodes
+2. Order them from foundational/basic (bottom) to advanced (top)
+3. Each concept is a prerequisite for the ones above it
+4. Group them into 3 levels: "foundational", "intermediate", "advanced"
+5. Each node needs: a short name (2-5 words), a one-sentence description, and its level
+
+Return ONLY valid JSON, no other text. Format:
+{
+  "subject": "Short subject name",
+  "nodes": [
+    { "id": "node1", "name": "Concept Name", "description": "One-sentence description", "level": "foundational|intermediate|advanced" }
+  ]
+}
+
+Make the roadmap complete and accurate for learning this topic from scratch.`;
+
+  try {
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-v4-flash',
+        max_tokens: 2000,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You generate structured study roadmaps. Always respond with valid JSON only, no other text.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        alert('Wrong proxy password. Check your settings.');
+        openAiConfig();
+        return;
+      }
+      throw new Error(err.error?.message || `HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    const text = json.choices?.[0]?.message?.content || '';
+    let roadmapData;
+    try {
+      roadmapData = JSON.parse(text);
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) roadmapData = JSON.parse(match[0]);
+      else throw new Error('Could not parse AI response as JSON');
+    }
+
+    if (!roadmapData.nodes || !Array.isArray(roadmapData.nodes) || roadmapData.nodes.length === 0) {
+      throw new Error('AI returned no nodes');
+    }
+
+    // Delete old lesson caches for removed nodes
+    const oldNodeIds = new Set(active.nodes.map(n => n.id));
+    active.nodes = roadmapData.nodes;
+    active.completed = [];
+    active.subject = roadmapData.subject || active.subject;
+    roadmapData.nodes.forEach(n => {
+      if (!oldNodeIds.has(n.id)) {
+        try { localStorage.removeItem('rm_lesson_' + n.id); } catch {}
+      }
+    });
+    saveState();
+    showGraphView();
+
+  } catch (e) {
+    alert('Failed to regenerate: ' + e.message);
+    showGraphView();
+  } finally {
+    regenBtn.disabled = false;
+    regenBtn.innerHTML = '<i class="fa-solid fa-arrow-rotate"></i> Regenerate';
+  }
 });
 
 // ── Render graph ──
@@ -1660,6 +1751,7 @@ Requirements:
 3. Include practical examples
 4. Break down complex parts
 5. End with 2-3 practice questions or key takeaways
+6. IMPORTANT: Wrap ALL mathematical expressions in LaTeX delimiters: $...$ for inline math and $$...$$ for block/display equations. For example: $x=1$, $\\frac{y_2 - y_1}{x_2 - x_1}$, $\\infty$, $\\sqrt{2x+6}$, $$m = \\frac{p}{q}$$. Do NOT output raw LaTeX commands without delimiters.
 
 Format in markdown with ## for section headers. Be comprehensive but accessible.`;
 
@@ -1704,6 +1796,22 @@ function renderLessonContent(text, node) {
     (isCompleted
       ? '<button id="lesson-complete-btn" style="background:var(--surface2);color:var(--green);cursor:default;" disabled><i class="fa-solid fa-check-circle"></i> Completed</button>'
       : '<button id="lesson-complete-btn" onclick="markComplete()"><i class="fa-solid fa-check"></i> Mark as Complete</button>');
+  // Render KaTeX after DOM update
+  if (typeof renderMathInElement !== 'undefined') {
+    setTimeout(() => {
+      try {
+        renderMathInElement(lessonContent, {
+          delimiters: [
+            {left: "$$", right: "$$", display: true},
+            {left: "$", right: "$", display: false},
+            {left: "\\(", right: "\\)", display: false},
+            {left: "\\[", right: "\\]", display: true}
+          ],
+          throwOnError: false
+        });
+      } catch (e) {}
+    }, 10);
+  }
 }
 
 /**
