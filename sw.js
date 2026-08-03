@@ -1,5 +1,5 @@
 // Service worker — caches KaTeX and Font Awesome for offline use
-const CACHE_NAME = 'roadmap-v1';
+const CACHE_NAME = 'roadmap-v2';
 const CACHE_URLS = [
   './',
   './index.html',
@@ -30,6 +30,8 @@ const CACHE_URLS = [
   'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/fonts/KaTeX_SansSerif-Regular.woff2',
   'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/fonts/KaTeX_Script-Regular.woff2',
   'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/fonts/KaTeX_Typewriter-Regular.woff2',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
 ];
 
 self.addEventListener('install', event => {

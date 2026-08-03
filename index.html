@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   /* ── Reset & Base ── */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1113,6 +1114,162 @@
     color: var(--text-muted);
     font-size: 14px;
   }
+
+  /* ── PDF upload zone ── */
+  .pdf-upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 12px;
+    text-align: center;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition);
+    background: var(--surface2);
+  }
+  .pdf-upload-zone:hover, .pdf-upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.06);
+  }
+  .pdf-upload-zone i { font-size: 24px; color: var(--text-muted); margin-bottom: 6px; display: block; }
+  .pdf-upload-zone .pdf-upload-label { font-size: 13px; color: var(--text-muted); }
+  .pdf-upload-zone .pdf-upload-label span { color: var(--accent2); font-weight: 600; }
+  #pdf-file-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .pdf-file-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(108,99,255,0.12);
+    border: 1px solid var(--accent);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: var(--accent2);
+  }
+  .pdf-file-chip .pdf-remove {
+    cursor: pointer; color: var(--red); font-size: 12px; margin-left: 2px;
+    line-height: 1;
+  }
+  .pdf-file-chip .pdf-remove:hover { opacity: 0.7; }
+
+  /* ══════════════════════════════════════════════════
+     EXERCISES PANEL
+     ══════════════════════════════════════════════════ */
+  #exercises-panel {
+    position: absolute; inset: 0;
+    background: var(--bg); z-index: 100;
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+  }
+  #exercises-panel.open { transform: translateX(0); }
+  #exercises-btn.has-exercises { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .ex-pick-bar {
+    display: flex; gap: 8px;
+    padding: 10px 16px 0;
+    flex-shrink: 0;
+  }
+  .ex-node-select {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    font-family: inherit; cursor: pointer;
+  }
+  .ex-node-select:focus { border-color: var(--accent); }
+  .ex-generate-btn {
+    padding: 8px 14px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    white-space: nowrap; transition: opacity var(--transition);
+  }
+  .ex-generate-btn:hover { opacity: 0.85; }
+  .ex-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #ex-area {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .ex-progress {
+    font-size: 12px; color: var(--text-muted);
+    width: 100%; text-align: center;
+  }
+  .ex-card {
+    width: 100%; max-width: 340px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 18px;
+    transition: border-color var(--transition);
+  }
+  .ex-card:hover { border-color: var(--accent2); }
+  .ex-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .ex-difficulty {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 3px 8px; border-radius: 20px;
+  }
+  .ex-difficulty.easy { background: rgba(52,211,153,0.15); color: var(--green); }
+  .ex-difficulty.medium { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .ex-difficulty.hard { background: rgba(248,113,113,0.15); color: var(--red); }
+  .ex-card-question {
+    font-size: 14px; line-height: 1.6; color: var(--text);
+    margin-bottom: 14px;
+  }
+  .ex-card-answer {
+    display: none;
+    font-size: 13px; line-height: 1.6; color: var(--text);
+    padding: 12px; background: var(--surface2);
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px; border: 1px solid var(--border);
+  }
+  .ex-card-answer.show { display: block; }
+  .ex-card-answer strong { color: var(--accent2); }
+  .ex-card-answer em { color: var(--amber); font-style: normal; }
+  .ex-hint-text {
+    font-size: 12px; color: var(--amber); margin-bottom: 10px;
+    padding: 8px; background: rgba(251,191,36,0.06);
+    border-left: 2px solid var(--amber); border-radius: 0 4px 4px 0;
+    display: none;
+  }
+  .ex-hint-text.show { display: block; }
+  .ex-card-actions {
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .ex-card-actions button {
+    flex: 1; min-width: 0;
+    padding: 10px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    border: none; transition: opacity var(--transition);
+  }
+  .ex-card-actions button:hover { opacity: 0.85; }
+  .ex-btn-reveal { background: rgba(108,99,255,0.15); color: var(--accent2); border: 1px solid var(--accent) !important; }
+  .ex-btn-hint { background: rgba(251,191,36,0.1); color: var(--amber); border: 1px solid var(--amber) !important; }
+  .ex-btn-next { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid var(--green) !important; }
+  .ex-btn-review { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid var(--red) !important; }
+  .ex-empty {
+    text-align: center; padding: 40px 20px; color: var(--text-muted);
+  }
+  .ex-empty i { font-size: 36px; margin-bottom: 12px; display: block; opacity: 0.4; }
+  .ex-done {
+    text-align: center; padding: 30px 20px; color: var(--text);
+  }
+  .ex-done i { font-size: 42px; margin-bottom: 12px; display: block; color: var(--green); }
+  .ex-restart {
+    padding: 10px 24px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    margin-top: 12px;
+  }
 </style>
 </head>
 <body>
@@ -1127,6 +1284,7 @@
       <div id="roadmap-switcher"></div>
     </div>
     <div id="ai-status">
+      <button id="exercises-btn" title="Exercises"><i class="fa-solid fa-dumbbell"></i></button>
       <button id="flashcards-btn" title="Flashcards"><i class="fa-regular fa-rectangle-list"></i></button>
       <button id="saved-qa-btn" title="Saved Q&A"><i class="fa-regular fa-bookmark"></i></button>
       <button id="ai-config-btn" title="AI Settings"><i class="fa-solid fa-gear"></i></button>
@@ -1156,6 +1314,12 @@
       <div class="section-card">
         <div class="section-header"><span class="section-title">📝 What are you studying?</span></div>
         <div style="padding:16px;">
+          <div class="pdf-upload-zone" id="pdf-upload-zone">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <div class="pdf-upload-label">Drag & drop PDFs or <span>browse</span></div>
+            <input type="file" id="pdf-file-input" accept=".pdf" multiple style="display:none;">
+          </div>
+          <div id="pdf-file-list"></div>
           <textarea id="roadmap-input" class="roadmap-input" placeholder="e.g. I'm studying Linear Algebra, course code SF1624. Here's the syllabus: Vector spaces, linear transformations, eigenvalues, diagonalization, inner products..."></textarea>
           <button id="roadmap-generate-btn" class="btn-primary">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Roadmap
@@ -1212,6 +1376,20 @@
 
 <!-- Left-edge blocker for swipe-back prevention -->
 <div id="edge-blocker" style="position:fixed;left:0;top:0;width:35px;height:100%;z-index:9999;display:none;"></div>
+
+  <!-- Exercises Panel -->
+  <div id="exercises-panel">
+    <div class="panel-header">
+      <button id="ex-back-btn" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+      <span class="panel-title">Exercises</span>
+    </div>
+    <div id="ex-area">
+      <div class="ex-empty">
+        <i class="fa-solid fa-dumbbell"></i>
+        <div>Generate practice exercises from your lessons.</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Flashcards Panel -->
   <div id="flashcards-panel">
@@ -1571,7 +1749,7 @@ Make the roadmap complete and accurate for learning this topic from scratch.`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-v4-pro',
         max_tokens: 2000,
         temperature: 0.7,
         messages: [
@@ -1672,7 +1850,7 @@ Make the roadmap complete and accurate for learning this topic from scratch.`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-v4-pro',
         max_tokens: 2000,
         temperature: 0.7,
         messages: [
@@ -1923,7 +2101,7 @@ Format in markdown with ## for section headers. Be comprehensive but accessible.
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-v4-pro',
         max_tokens: 2500,
         temperature: 0.6,
         messages: [
@@ -2193,7 +2371,7 @@ Answer clearly and conversationally. Be helpful but concise.`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-chat',
         max_tokens: 800,
         temperature: 0.7,
         messages: [
@@ -2551,7 +2729,7 @@ Instructions:
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-v4-pro',
         max_tokens: 1500,
         temperature: 0.7,
         messages: [
@@ -2737,6 +2915,396 @@ const _origOpenLesson = openLesson;
 openLesson = function(nodeId) {
   savedQAPanel.classList.remove('open');
   return _origOpenLesson(nodeId);
+};
+
+// ═══════════════════════════════════════════
+// PDF UPLOAD + EXTRACTION
+// ═══════════════════════════════════════════
+// Set worker path for pdf.js
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+const pdfUploadZone = document.getElementById('pdf-upload-zone');
+const pdfFileInput = document.getElementById('pdf-file-input');
+const pdfFileList = document.getElementById('pdf-file-list');
+
+let pdfFiles = []; // { name, data(ArrayBuffer) }
+
+function renderPdfChips() {
+  if (pdfFiles.length === 0) {
+    pdfFileList.innerHTML = '';
+    return;
+  }
+  pdfFileList.innerHTML = pdfFiles.map((f, i) => `
+    <div class="pdf-file-chip">
+      <i class="fa-regular fa-file-pdf"></i> ${escHtml(f.name)}
+      <span class="pdf-remove" data-idx="${i}">&times;</span>
+    </div>
+  `).join('');
+  pdfFileList.querySelectorAll('.pdf-remove').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(el.dataset.idx);
+      pdfFiles.splice(idx, 1);
+      renderPdfChips();
+    });
+  });
+}
+
+async function addPdfFiles(fileList) {
+  for (const file of fileList) {
+    if (file.type !== 'application/pdf') continue;
+    const buf = await file.arrayBuffer();
+    pdfFiles.push({ name: file.name, data: buf });
+  }
+  renderPdfChips();
+}
+
+pdfUploadZone.addEventListener('click', () => pdfFileInput.click());
+pdfFileInput.addEventListener('change', (e) => addPdfFiles(e.target.files));
+
+pdfUploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  pdfUploadZone.classList.add('dragover');
+});
+pdfUploadZone.addEventListener('dragleave', () => {
+  pdfUploadZone.classList.remove('dragover');
+});
+pdfUploadZone.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  pdfUploadZone.classList.remove('dragover');
+  await addPdfFiles(e.dataTransfer.files);
+});
+
+async function extractPdfTexts() {
+  const texts = [];
+  for (const f of pdfFiles) {
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: f.data }).promise;
+      const pages = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items.map(it => it.str).join(' ');
+        pages.push(pageText);
+      }
+      texts.push(`--- PDF: ${f.name} ---\n${pages.join('\n')}`);
+    } catch (e) {
+      texts.push(`--- PDF: ${f.name} (extraction failed) ---`);
+    }
+  }
+  return texts.join('\n\n');
+}
+
+// Override the generate function to include PDF text
+const _origGenerate = generate;
+generate = async function() {
+  // If PDFs are loaded, extract text and prepend to input
+  if (pdfFiles.length > 0) {
+    const pdfText = await extractPdfTexts();
+    const existingText = inputEl.value.trim();
+    inputEl.value = (existingText + '\n\n' + pdfText).trim();
+    pdfFiles = [];
+    renderPdfChips();
+  }
+  return _origGenerate();
+};
+
+// ═══════════════════════════════════════════
+// EXERCISES
+// ═══════════════════════════════════════════
+const exercisesBtn = document.getElementById('exercises-btn');
+const exercisesPanel = document.getElementById('exercises-panel');
+const exBackBtn = document.getElementById('ex-back-btn');
+const exArea = document.getElementById('ex-area');
+
+let exState = {
+  exercises: [],       // [{q, hint, answer, difficulty}]
+  currentIdx: 0,
+  shownAnswer: false,
+  shownHint: false,
+  nodeId: null,
+  done: 0,
+  review: 0
+};
+
+function getExStorageKey(roadmapId, nodeId) {
+  return 'rm_exercises_' + roadmapId + '_' + nodeId;
+}
+
+function openExercises() {
+  exercisesPanel.classList.add('open');
+  showEdgeBlocker();
+  history.pushState({ panelOpen: true }, '');
+  renderExercisesPicker();
+}
+
+function closeExercises() {
+  exercisesPanel.classList.remove('open');
+  hideEdgeBlocker();
+}
+
+function renderExercisesPicker() {
+  const active = getActiveRoadmap();
+  if (!active || !active.nodes) {
+    exArea.innerHTML = '<div class="ex-empty"><i class="fa-solid fa-dumbbell"></i><div>No roadmap loaded.</div></div>';
+    return;
+  }
+
+  // If already have exercises loaded, show deck
+  if (exState.exercises.length > 0) {
+    renderExerciseCard();
+    return;
+  }
+
+  let html = '<div class="ex-pick-bar"><select class="ex-node-select" id="ex-node-select"><option value="">Select a topic…</option>';
+  active.nodes.forEach(n => {
+    html += `<option value="${n.id}">${escHtml(n.name)} (${n.level})</option>`;
+  });
+  html += '</select><button class="ex-generate-btn" id="ex-generate-btn" onclick="generateExercises()">Generate</button></div>';
+  exArea.innerHTML = html;
+}
+
+async function generateExercises() {
+  const select = document.getElementById('ex-node-select');
+  if (!select || !select.value) return;
+
+  const nodeId = select.value;
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const node = active.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) { openAiConfig(); return; }
+
+  // Check cache
+  const cacheKey = getExStorageKey(active.id, nodeId);
+  const cached = LS.get(cacheKey, null);
+  if (cached && cached.length > 0) {
+    exState.exercises = cached;
+    exState.currentIdx = 0;
+    exState.shownAnswer = false;
+    exState.shownHint = false;
+    exState.nodeId = nodeId;
+    exState.done = 0;
+    exState.review = 0;
+    renderExerciseCard();
+    updateExercisesBadge();
+    return;
+  }
+
+  const btn = document.getElementById('ex-generate-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+
+  const lessonText = getLesson(nodeId) || '';
+
+  try {
+    const prompt = `Create 5-8 practice exercises for the concept "${node.name}" in the subject "${active.subject}".
+
+Context:
+${node.description}
+${lessonText ? 'Lesson content:\n' + lessonText.slice(0, 2000) : ''}
+
+Instructions:
+- Generate exercises that progress from easy to hard
+- Each exercise should have: a clear question, a short hint, a detailed answer, and a difficulty level (easy/medium/hard)
+- Format as a JSON array: [{"q": "Question text", "hint": "Short hint", "answer": "Detailed answer with steps", "difficulty": "easy|medium|hard"}, ...]
+- The first 1-2 should be easy, next 2-3 medium, last 1-2 hard
+- Return ONLY the JSON array, no other text.`;
+
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-v4-pro',
+        max_tokens: 2500,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You create practice exercises for self-study. Respond with valid JSON only.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const text = json.choices?.[0]?.message?.content || '';
+    let exercises;
+    try {
+      exercises = JSON.parse(text);
+    } catch {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) exercises = JSON.parse(match[0]);
+      else throw new Error('Could not parse exercises');
+    }
+
+    if (!Array.isArray(exercises) || exercises.length === 0) throw new Error('No exercises generated');
+
+    LS.set(cacheKey, exercises);
+    exState.exercises = exercises;
+    exState.currentIdx = 0;
+    exState.shownAnswer = false;
+    exState.shownHint = false;
+    exState.nodeId = nodeId;
+    exState.done = 0;
+    exState.review = 0;
+    renderExerciseCard();
+    updateExercisesBadge();
+
+  } catch (e) {
+    alert('Failed to generate exercises: ' + e.message);
+    renderExercisesPicker();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
+  }
+}
+
+function renderExerciseCard() {
+  const { exercises, currentIdx, shownAnswer, shownHint, done, review } = exState;
+  const total = exercises.length;
+
+  if (currentIdx >= total) {
+    exArea.innerHTML = `
+      <div class="ex-done">
+        <i class="fa-solid fa-trophy"></i>
+        <div class="fc-done-score">Exercises Complete!</div>
+        <div style="font-size:28px;font-weight:800;color:var(--green);margin:8px 0;">${done}/${total}</div>
+        <div style="color:var(--text-muted);">${review} to review</div>
+        <button class="ex-restart" onclick="restartExercises()">Practice Again</button>
+      </div>`;
+    return;
+  }
+
+  const ex = exercises[currentIdx];
+  const diffClass = ex.difficulty === 'hard' ? 'hard' : ex.difficulty === 'medium' ? 'medium' : 'easy';
+
+  let html = '';
+  html += `<div class="ex-progress">Exercise ${currentIdx + 1} of ${total} — <span style="color:var(--green);">✓ ${done}</span> <span style="color:var(--red);">↻ ${review}</span></div>`;
+
+  html += `<div class="ex-card">`;
+  html += `<div class="ex-card-header">`;
+  html += `<span class="ex-difficulty ${diffClass}">${ex.difficulty || 'easy'}</span>`;
+  html += `<span style="font-size:11px;color:var(--text-muted);">${currentIdx + 1}/${total}</span>`;
+  html += `</div>`;
+  html += `<div class="ex-card-question">${renderChatMarkdown(ex.q)}</div>`;
+  html += `<div class="ex-hint-text${shownHint ? ' show' : ''}"><strong>💡 Hint:</strong> ${renderChatMarkdown(ex.hint || 'Think about it step by step.')}</div>`;
+  html += `<div class="ex-card-answer${shownAnswer ? ' show' : ''}">${renderChatMarkdown(ex.answer || 'No answer provided.')}</div>`;
+  html += `<div class="ex-card-actions">`;
+  if (!shownHint && !shownAnswer) {
+    html += `<button class="ex-btn-hint" onclick="showExHint()">💡 Hint</button>`;
+  }
+  if (!shownAnswer) {
+    html += `<button class="ex-btn-reveal" onclick="showExAnswer()">👁 Reveal Answer</button>`;
+  }
+  if (shownAnswer) {
+    html += `<button class="ex-btn-review" onclick="reviewExercise()">↻ Review Again</button>`;
+    html += `<button class="ex-btn-next" onclick="nextExercise()">✓ Got It</button>`;
+  }
+  html += `</div></div>`;
+
+  exArea.innerHTML = html;
+
+  if (typeof renderMathInElement !== 'undefined') {
+    setTimeout(() => {
+      try { renderMathInElement(exArea, { delimiters: [{left: "$$", right: "$$", display: true}, {left: "$", right: "$", display: false}, {left: "\\(", right: "\\)", display: false}, {left: "\\[", right: "\\]", display: true}], throwOnError: false }); } catch (e) {}
+    }, 10);
+  }
+}
+
+function showExHint() {
+  exState.shownHint = true;
+  renderExerciseCard();
+}
+
+function showExAnswer() {
+  exState.shownAnswer = true;
+  renderExerciseCard();
+}
+
+function nextExercise() {
+  exState.done++;
+  exState.currentIdx++;
+  exState.shownAnswer = false;
+  exState.shownHint = false;
+  renderExerciseCard();
+}
+
+function reviewExercise() {
+  exState.review++;
+  // Add to end for later review
+  if (exState.currentIdx < exState.exercises.length) {
+    exState.exercises.push(exState.exercises[exState.currentIdx]);
+  }
+  exState.currentIdx++;
+  exState.shownAnswer = false;
+  exState.shownHint = false;
+  renderExerciseCard();
+}
+
+function restartExercises() {
+  // Shuffle
+  const cards = exState.exercises;
+  for (let i = cards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+  exState.currentIdx = 0;
+  exState.shownAnswer = false;
+  exState.shownHint = false;
+  exState.done = 0;
+  exState.review = 0;
+  renderExerciseCard();
+}
+
+function updateExercisesBadge() {
+  const active = getActiveRoadmap();
+  if (!active) return;
+  let hasAny = false;
+  active.nodes.forEach(n => {
+    const cacheKey = getExStorageKey(active.id, n.id);
+    if (LS.get(cacheKey, null)) hasAny = true;
+  });
+  if (hasAny) {
+    exercisesBtn.classList.add('has-exercises');
+  } else {
+    exercisesBtn.classList.remove('has-exercises');
+  }
+}
+
+exercisesBtn.addEventListener('click', openExercises);
+exBackBtn.addEventListener('click', closeExercises);
+
+// Update exercise badge when showing graph
+const _origRenderGraph = renderGraph;
+renderGraph = function() {
+  _origRenderGraph();
+  updateExercisesBadge();
+};
+
+// Expose for inline onclick
+window.ROADMAP = { ...window.ROADMAP, generateExercises, showExHint, showExAnswer, nextExercise, reviewExercise, restartExercises };
+
+// Add exercises panel to popstate + back button cleanup
+exBackBtn.addEventListener('click', hideEdgeBlocker);
+
+const _popstateHandler = window.onpopstate;
+window.addEventListener('popstate', () => {
+  if (exercisesPanel.classList.contains('open')) {
+    exercisesPanel.classList.remove('open');
+    hideEdgeBlocker();
+    history.pushState(null, '');
+  }
+});
+
+// Close exercises when lesson opens
+const _origOpenLesson3 = openLesson;
+openLesson = function(nodeId) {
+  savedQAPanel.classList.remove('open');
+  exercisesPanel.classList.remove('open');
+  return _origOpenLesson3(nodeId);
 };
 </script>
 </body>
