@@ -1284,7 +1284,6 @@
       <div id="roadmap-switcher"></div>
     </div>
     <div id="ai-status">
-      <button id="exercises-btn" title="Exercises"><i class="fa-solid fa-dumbbell"></i></button>
       <button id="flashcards-btn" title="Flashcards"><i class="fa-regular fa-rectangle-list"></i></button>
       <button id="saved-qa-btn" title="Saved Q&A"><i class="fa-regular fa-bookmark"></i></button>
       <button id="ai-config-btn" title="AI Settings"><i class="fa-solid fa-gear"></i></button>
@@ -1332,6 +1331,7 @@
     <div id="graph-view" style="display:none;">
       <div id="roadmap-graph-inner"></div>
       <div class="rm-actions">
+        <button id="rm-exercises-btn" class="btn-secondary"><i class="fa-solid fa-dumbbell"></i> Practice Exercises</button>
         <button id="rm-new-roadmap" class="btn-secondary"><i class="fa-solid fa-plus"></i> New Subject</button>
         <button id="rm-regen-roadmap" class="btn-secondary"><i class="fa-solid fa-arrow-rotate"></i> Regenerate</button>
       </div>
@@ -3012,9 +3012,9 @@ generate = async function() {
 };
 
 // ═══════════════════════════════════════════
-// EXERCISES
+// EXERCISES (per-roadmap, independent progression)
 // ═══════════════════════════════════════════
-const exercisesBtn = document.getElementById('exercises-btn');
+const exOpenBtn = document.getElementById('rm-exercises-btn');
 const exercisesPanel = document.getElementById('exercises-panel');
 const exBackBtn = document.getElementById('ex-back-btn');
 const exArea = document.getElementById('ex-area');
@@ -3024,20 +3024,19 @@ let exState = {
   currentIdx: 0,
   shownAnswer: false,
   shownHint: false,
-  nodeId: null,
   done: 0,
   review: 0
 };
 
-function getExStorageKey(roadmapId, nodeId) {
-  return 'rm_exercises_' + roadmapId + '_' + nodeId;
+function getExCacheKey(roadmapId) {
+  return 'rm_exercises_r_' + roadmapId;
 }
 
 function openExercises() {
   exercisesPanel.classList.add('open');
   showEdgeBlocker();
   history.pushState({ panelOpen: true }, '');
-  renderExercisesPicker();
+  renderExercisesStart();
 }
 
 function closeExercises() {
@@ -3045,73 +3044,79 @@ function closeExercises() {
   hideEdgeBlocker();
 }
 
-function renderExercisesPicker() {
+function renderExercisesStart() {
   const active = getActiveRoadmap();
-  if (!active || !active.nodes) {
+  if (!active) {
     exArea.innerHTML = '<div class="ex-empty"><i class="fa-solid fa-dumbbell"></i><div>No roadmap loaded.</div></div>';
     return;
   }
 
-  // If already have exercises loaded, show deck
+  // If we already have exercises in memory, show the deck
   if (exState.exercises.length > 0) {
     renderExerciseCard();
     return;
   }
 
-  let html = '<div class="ex-pick-bar"><select class="ex-node-select" id="ex-node-select"><option value="">Select a topic…</option>';
-  active.nodes.forEach(n => {
-    html += `<option value="${n.id}">${escHtml(n.name)} (${n.level})</option>`;
-  });
-  html += '</select><button class="ex-generate-btn" id="ex-generate-btn" onclick="generateExercises()">Generate</button></div>';
-  exArea.innerHTML = html;
-}
-
-async function generateExercises() {
-  const select = document.getElementById('ex-node-select');
-  if (!select || !select.value) return;
-
-  const nodeId = select.value;
-  const active = getActiveRoadmap();
-  if (!active) return;
-  const node = active.nodes.find(n => n.id === nodeId);
-  if (!node) return;
-
-  const proxyUrl = getProxyUrl();
-  if (!proxyUrl) { openAiConfig(); return; }
-
-  // Check cache
-  const cacheKey = getExStorageKey(active.id, nodeId);
+  // Check cache for this roadmap
+  const cacheKey = getExCacheKey(active.id);
   const cached = LS.get(cacheKey, null);
   if (cached && cached.length > 0) {
     exState.exercises = cached;
     exState.currentIdx = 0;
     exState.shownAnswer = false;
     exState.shownHint = false;
-    exState.nodeId = nodeId;
     exState.done = 0;
     exState.review = 0;
     renderExerciseCard();
-    updateExercisesBadge();
     return;
   }
 
-  const btn = document.getElementById('ex-generate-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  // Show generate prompt
+  exArea.innerHTML = `
+    <div class="ex-empty">
+      <i class="fa-solid fa-dumbbell"></i>
+      <div>Practice exercises for <strong style="color:var(--accent2);">${escHtml(active.subject)}</strong></div>
+      <div style="margin-top:6px;font-size:12px;">The AI will create a practical exercise track that builds from basics to advanced — independent from the theory lessons.</div>
+      <button class="ex-restart" style="margin-top:16px;" onclick="generateExercises()"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Exercises</button>
+    </div>`;
+}
 
-  const lessonText = getLesson(nodeId) || '';
+async function generateExercises() {
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) { openAiConfig(); return; }
+
+  // Check cache again
+  const cacheKey = getExCacheKey(active.id);
+  const cached = LS.get(cacheKey, null);
+  if (cached && cached.length > 0) {
+    exState.exercises = cached;
+    exState.currentIdx = 0;
+    exState.shownAnswer = false;
+    exState.shownHint = false;
+    exState.done = 0;
+    exState.review = 0;
+    renderExerciseCard();
+    return;
+  }
+
+  exArea.innerHTML = '<div class="loading-lesson"><i class="fa-solid fa-spinner"></i><div>Generating exercises…</div></div>';
+
+  // Build a short context from node names/descriptions
+  const nodeList = active.nodes.map(n => `- ${n.name}: ${n.description}`).join('\n');
 
   try {
-    const prompt = `Create 5-8 practice exercises for the concept "${node.name}" in the subject "${active.subject}".
+    const prompt = `Create 6-8 practical exercises for the subject "${active.subject}".
 
-Context:
-${node.description}
-${lessonText ? 'Lesson content:\n' + lessonText.slice(0, 2000) : ''}
+The course covers these topics:
+${nodeList}
 
 Instructions:
-- Generate exercises that progress from easy to hard
-- Each exercise should have: a clear question, a short hint, a detailed answer, and a difficulty level (easy/medium/hard)
-- Format as a JSON array: [{"q": "Question text", "hint": "Short hint", "answer": "Detailed answer with steps", "difficulty": "easy|medium|hard"}, ...]
-- The first 1-2 should be easy, next 2-3 medium, last 1-2 hard
+- Create a standalone exercise track that progresses from foundational to advanced, independent of theory lessons
+- Each exercise should test practical understanding: a clear problem, a short hint, a detailed answer, and a difficulty (easy/medium/hard)
+- First 2 should be easy (basic concepts), next 2-3 medium, last 2-3 hard
+- Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
 - Return ONLY the JSON array, no other text.`;
 
     const res = await fetch(proxyUrl, {
@@ -3119,10 +3124,10 @@ Instructions:
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
         model: 'deepseek-v4-pro',
-        max_tokens: 2500,
+        max_tokens: 2000,
         temperature: 0.7,
         messages: [
-          { role: 'system', content: 'You create practice exercises for self-study. Respond with valid JSON only.' },
+          { role: 'system', content: 'You create practical exercises for self-study. Respond with valid JSON only.' },
           { role: 'user', content: prompt }
         ]
       })
@@ -3148,17 +3153,17 @@ Instructions:
     exState.currentIdx = 0;
     exState.shownAnswer = false;
     exState.shownHint = false;
-    exState.nodeId = nodeId;
     exState.done = 0;
     exState.review = 0;
     renderExerciseCard();
-    updateExercisesBadge();
 
   } catch (e) {
-    alert('Failed to generate exercises: ' + e.message);
-    renderExercisesPicker();
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Generate'; }
+    exArea.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--red);">
+      <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;display:block;margin-bottom:12px;"></i>
+      Failed: ${escHtml(e.message)}
+      <br><br>
+      <button onclick="generateExercises()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;">Retry</button>
+    </div>`;
   }
 }
 
@@ -3259,38 +3264,15 @@ function restartExercises() {
   renderExerciseCard();
 }
 
-function updateExercisesBadge() {
-  const active = getActiveRoadmap();
-  if (!active) return;
-  let hasAny = false;
-  active.nodes.forEach(n => {
-    const cacheKey = getExStorageKey(active.id, n.id);
-    if (LS.get(cacheKey, null)) hasAny = true;
-  });
-  if (hasAny) {
-    exercisesBtn.classList.add('has-exercises');
-  } else {
-    exercisesBtn.classList.remove('has-exercises');
-  }
-}
-
-exercisesBtn.addEventListener('click', openExercises);
+// Wire up the graph-view button
+exOpenBtn.addEventListener('click', openExercises);
 exBackBtn.addEventListener('click', closeExercises);
-
-// Update exercise badge when showing graph
-const _origRenderGraph = renderGraph;
-renderGraph = function() {
-  _origRenderGraph();
-  updateExercisesBadge();
-};
 
 // Expose for inline onclick
 window.ROADMAP = { ...window.ROADMAP, generateExercises, showExHint, showExAnswer, nextExercise, reviewExercise, restartExercises };
 
-// Add exercises panel to popstate + back button cleanup
-exBackBtn.addEventListener('click', hideEdgeBlocker);
-
-const _popstateHandler = window.onpopstate;
+// Add exercises panel to popstate cleanup
+const _origPopstate2 = window.onpopstate;
 window.addEventListener('popstate', () => {
   if (exercisesPanel.classList.contains('open')) {
     exercisesPanel.classList.remove('open');
@@ -3299,7 +3281,7 @@ window.addEventListener('popstate', () => {
   }
 });
 
-// Close exercises when lesson opens
+// Close exercises when lesson opens (prevent stacking)
 const _origOpenLesson3 = openLesson;
 openLesson = function(nodeId) {
   savedQAPanel.classList.remove('open');
