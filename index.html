@@ -1270,6 +1270,29 @@
     font-size: 14px; font-weight: 600; cursor: pointer;
     margin-top: 12px;
   }
+  .ex-restart-secondary {
+    padding: 10px 16px;
+    background: var(--surface2); color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+  }
+  .ex-restart-secondary:hover { background: var(--border); color: var(--text); }
+  .ex-restart-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ex-secondary-actions {
+    display: flex; gap: 8px;
+    width: 100%; max-width: 340px;
+  }
+  .ex-secondary-actions button { flex: 1; min-width: 0; }
+  .ex-roadmap-title {
+    font-size: 16px; font-weight: 700; color: var(--text);
+    width: 100%; text-align: center;
+  }
+  .ex-roadmap-subtitle {
+    font-size: 12px; color: var(--text-muted); margin-top: 4px;
+    line-height: 1.5; width: 100%; text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -3020,12 +3043,15 @@ const exBackBtn = document.getElementById('ex-back-btn');
 const exArea = document.getElementById('ex-area');
 
 let exState = {
-  exercises: [],       // [{q, hint, answer, difficulty}]
+  roadmap: [],         // [{id, name, description, level}] — practical skill nodes
+  activeNodeId: null,  // which skill node is being practiced
+  exercises: [],       // [{q, hint, answer, difficulty}] for the active node
   currentIdx: 0,
   shownAnswer: false,
   shownHint: false,
   done: 0,
-  review: 0
+  review: 0,
+  completedNodes: []   // node ids whose problem decks have been fully finished
 };
 
 function getExCacheKey(roadmapId) {
@@ -3051,23 +3077,21 @@ function renderExercisesStart() {
     return;
   }
 
-  // If we already have exercises in memory, show the deck
-  if (exState.exercises.length > 0) {
-    renderExerciseCard();
+  // If we have an exercise skill roadmap in memory, show it
+  if (exState.roadmap.length > 0) {
+    renderExerciseRoadmap();
     return;
   }
 
   // Check cache for this roadmap
   const cacheKey = getExCacheKey(active.id);
   const cached = LS.get(cacheKey, null);
-  if (cached && cached.length > 0) {
-    exState.exercises = cached;
-    exState.currentIdx = 0;
-    exState.shownAnswer = false;
-    exState.shownHint = false;
-    exState.done = 0;
-    exState.review = 0;
-    renderExerciseCard();
+  if (cached && cached.roadmap && Array.isArray(cached.roadmap) && cached.roadmap.length > 0) {
+    exState.roadmap = cached.roadmap;
+    exState.completedNodes = cached.completedNodes || [];
+    exState.activeNodeId = null;
+    exState.exercises = [];
+    renderExerciseRoadmap();
     return;
   }
 
@@ -3076,8 +3100,8 @@ function renderExercisesStart() {
     <div class="ex-empty">
       <i class="fa-solid fa-dumbbell"></i>
       <div>Practice exercises for <strong style="color:var(--accent2);">${escHtml(active.subject)}</strong></div>
-      <div style="margin-top:6px;font-size:12px;">The AI will create a practical exercise track that builds from basics to advanced — independent from the theory lessons.</div>
-      <button class="ex-restart" style="margin-top:16px;" onclick="generateExercises()"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Exercises</button>
+      <div style="margin-top:6px;font-size:12px;">The AI will build a practical exercise roadmap — each skill gets repeated practice problems, building from basics to advanced and combining earlier skills.</div>
+      <button class="ex-restart" style="margin-top:16px;" onclick="generateExercises()"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate Exercise Roadmap</button>
     </div>`;
 }
 
@@ -3090,8 +3114,189 @@ async function generateExercises() {
   // Check cache again
   const cacheKey = getExCacheKey(active.id);
   const cached = LS.get(cacheKey, null);
-  if (cached && cached.length > 0) {
-    exState.exercises = cached;
+  if (cached && cached.roadmap && Array.isArray(cached.roadmap) && cached.roadmap.length > 0) {
+    exState.roadmap = cached.roadmap;
+    exState.completedNodes = cached.completedNodes || [];
+    exState.activeNodeId = null;
+    exState.exercises = [];
+    renderExerciseRoadmap();
+    return;
+  }
+
+  exArea.innerHTML = '<div class="loading-lesson"><i class="fa-solid fa-spinner"></i><div>Building exercise roadmap…</div></div>';
+
+  // Build a short context from node names/descriptions
+  const nodeList = active.nodes.map(n => `- ${n.name}: ${n.description}`).join('\n');
+
+  try {
+    const prompt = `Create a practical exercise roadmap for the subject "${active.subject}".
+
+The course covers these theory topics:
+${nodeList}
+
+A practical exercise roadmap breaks the subject into hands-on SKILLS that a student must practice repeatedly, ordered from foundational to advanced. Later skills SHOULD combine earlier base skills.
+
+Example for electronics:
+1. "Ohm's Law" (foundational) — practice finding V, I, or R given two values, with multiple different problems
+2. "Series & Parallel Resistance" (foundational) — combine resistors and find total resistance
+3. "Ohm's Law in Circuits" (intermediate) — apply Ohm's law to multi-resistor circuits (combines skill 1 + 2)
+4. "Kirchhoff's Laws" (advanced) — solve loops and nodes using KVL/KCL (combines skills 1-3)
+
+Instructions:
+- Create 6-10 skill nodes
+- Each node: { "id": "ex1", "name": "Skill Name (2-5 words)", "description": "One sentence about what the student practices, and which base skills it combines", "level": "foundational|intermediate|advanced" }
+- Order them bottom-up so advanced nodes reference and combine the foundational ones
+- Return ONLY valid JSON, no other text. Format:
+{ "nodes": [ { "id": "ex1", "name": "...", "description": "...", "level": "foundational" }, ... ] }`;
+
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-v4-pro',
+        max_tokens: 1500,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You create practical exercise roadmaps. Respond with valid JSON only.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const text = json.choices?.[0]?.message?.content || '';
+    let roadmapData;
+    try {
+      roadmapData = JSON.parse(text);
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) roadmapData = JSON.parse(match[0]);
+      else throw new Error('Could not parse exercise roadmap');
+    }
+
+    if (!roadmapData.nodes || !Array.isArray(roadmapData.nodes) || roadmapData.nodes.length === 0) {
+      throw new Error('AI returned no exercise nodes');
+    }
+
+    // Ensure unique ids
+    const seenIds = new Set();
+    roadmapData.nodes = roadmapData.nodes.map(n => {
+      if (!n.id || seenIds.has(n.id)) n.id = 'ex' + uid();
+      seenIds.add(n.id);
+      return {
+        id: n.id,
+        name: n.name || 'Skill',
+        description: n.description || '',
+        level: n.level === 'intermediate' || n.level === 'advanced' ? n.level : 'foundational'
+      };
+    });
+
+    LS.set(cacheKey, { roadmap: roadmapData.nodes, completedNodes: [], nodeDecks: {} });
+    exState.roadmap = roadmapData.nodes;
+    exState.completedNodes = [];
+    exState.activeNodeId = null;
+    exState.exercises = [];
+    renderExerciseRoadmap();
+
+  } catch (e) {
+    exArea.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--red);">
+      <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;display:block;margin-bottom:12px;"></i>
+      Failed: ${escHtml(e.message)}
+      <br><br>
+      <button onclick="generateExercises()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;">Retry</button>
+    </div>`;
+  }
+}
+
+function renderExerciseRoadmap() {
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const nodes = exState.roadmap;
+  const levels = ['foundational', 'intermediate', 'advanced'];
+  const levelLabels = { foundational: '🟣 Basics', intermediate: '🔵 Core Concepts', advanced: '🟡 Advanced' };
+  const levelIcons = { foundational: 'fa-solid fa-layer-group', intermediate: 'fa-solid fa-cubes', advanced: 'fa-solid fa-rocket' };
+
+  let totalDone = exState.completedNodes.length;
+  let totalNodes = nodes.length;
+
+  let html = `
+    <div class="ex-roadmap-title">🏋️ Exercise Roadmap</div>
+    <div class="ex-roadmap-subtitle">
+      ${totalDone > 0 ? `<span>${totalDone}/${totalNodes}</span> skills practiced` : 'Tap a skill to generate practice problems for it'}
+    </div>
+  `;
+
+  levels.forEach((level, levelIdx) => {
+    const levelNodes = nodes.filter(n => n.level === level);
+    if (levelNodes.length === 0) return;
+
+    if (levelIdx > 0) {
+      html += `<div class="rm-connector"></div>`;
+    }
+
+    html += `<div class="rm-group-label"><i class="${levelIcons[level]}"></i> ${levelLabels[level]}</div>`;
+
+    levelNodes.forEach((node, idx) => {
+      const isCompleted = exState.completedNodes.includes(node.id);
+      let statusBadge = '';
+      let nodeClass = 'rm-node';
+      if (isCompleted) {
+        nodeClass += ' completed';
+        statusBadge = '<span class="rm-node-badge done">✓ Done</span>';
+      } else {
+        statusBadge = '<span class="rm-node-badge ready"><i class="fa-solid fa-dumbbell"></i></span>';
+      }
+
+      html += `
+        <div class="${nodeClass}" data-ex-node-id="${node.id}">
+          <div class="rm-node-header">
+            <div class="rm-node-icon ${node.level}">
+              <i class="fa-solid fa-dumbbell"></i>
+            </div>
+            <div class="rm-node-info">
+              <div class="rm-node-name">${escHtml(node.name)}</div>
+              <div class="rm-node-desc">${escHtml(node.description)}</div>
+            </div>
+            ${statusBadge}
+          </div>
+        </div>`;
+
+      if (idx < levelNodes.length - 1) {
+        html += `<div class="rm-connector"></div>`;
+      }
+    });
+  });
+
+  html += `<button class="ex-restart" style="margin-top:16px;" onclick="generateExercises()"><i class="fa-solid fa-arrow-rotate"></i> Regenerate Roadmap</button>`;
+
+  exArea.innerHTML = html;
+
+  exArea.querySelectorAll('.rm-node[data-ex-node-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const nodeId = el.dataset.exNodeId;
+      generateNodeExercises(nodeId);
+    });
+  });
+}
+
+async function generateNodeExercises(nodeId) {
+  const active = getActiveRoadmap();
+  if (!active) return;
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) { openAiConfig(); return; }
+
+  const node = exState.roadmap.find(n => n.id === nodeId);
+  if (!node) return;
+
+  exState.activeNodeId = nodeId;
+
+  // Check cache for this node's deck
+  const cacheKey = getExCacheKey(active.id);
+  const cached = LS.get(cacheKey, null);
+  if (cached && cached.nodeDecks && Array.isArray(cached.nodeDecks[nodeId]) && cached.nodeDecks[nodeId].length > 0) {
+    exState.exercises = cached.nodeDecks[nodeId];
     exState.currentIdx = 0;
     exState.shownAnswer = false;
     exState.shownHint = false;
@@ -3101,21 +3306,29 @@ async function generateExercises() {
     return;
   }
 
-  exArea.innerHTML = '<div class="loading-lesson"><i class="fa-solid fa-spinner"></i><div>Generating exercises…</div></div>';
+  exArea.innerHTML = `<div class="loading-lesson"><i class="fa-solid fa-spinner"></i><div>Generating practice problems for "${escHtml(node.name)}"…</div></div>`;
 
-  // Build a short context from node names/descriptions
+  // Context: course topics + base skills this node builds on
   const nodeList = active.nodes.map(n => `- ${n.name}: ${n.description}`).join('\n');
+  const baseSkills = exState.roadmap
+    .filter(n => n.id === nodeId || n.level === 'foundational')
+    .map(n => `- ${n.name}: ${n.description}`)
+    .join('\n');
 
   try {
-    const prompt = `Create 6-8 practical exercises for the subject "${active.subject}".
+    const prompt = `Create 3 practical practice problems for the skill "${node.name}" in the subject "${active.subject}".
 
-The course covers these topics:
+What this skill is: ${node.description}
+
+Course theory topics:
 ${nodeList}
 
+Base skills available (this skill builds on them):
+${baseSkills}
+
 Instructions:
-- Create a standalone exercise track that progresses from foundational to advanced, independent of theory lessons
-- Each exercise should test practical understanding: a clear problem, a short hint, a detailed answer, and a difficulty (easy/medium/hard)
-- First 2 should be easy (basic concepts), next 2-3 medium, last 2-3 hard
+- Create 3 problems of the SAME base skill, each a DIFFERENT variation: different values, different unknowns (e.g. for Ohm's law: one asks for current, one for resistance, one for voltage)
+- Make them progressively harder, but all focused on this one skill
 - Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
 - Return ONLY the JSON array, no other text.`;
 
@@ -3124,10 +3337,10 @@ Instructions:
       headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
       body: JSON.stringify({
         model: 'deepseek-v4-pro',
-        max_tokens: 2000,
+        max_tokens: 1200,
         temperature: 0.7,
         messages: [
-          { role: 'system', content: 'You create practical exercises for self-study. Respond with valid JSON only.' },
+          { role: 'system', content: 'You create practical practice problems for self-study. Respond with valid JSON only.' },
           { role: 'user', content: prompt }
         ]
       })
@@ -3143,12 +3356,17 @@ Instructions:
     } catch {
       const match = text.match(/\[[\s\S]*\]/);
       if (match) exercises = JSON.parse(match[0]);
-      else throw new Error('Could not parse exercises');
+      else throw new Error('Could not parse problems');
     }
 
-    if (!Array.isArray(exercises) || exercises.length === 0) throw new Error('No exercises generated');
+    if (!Array.isArray(exercises) || exercises.length === 0) throw new Error('No problems generated');
 
-    LS.set(cacheKey, exercises);
+    // Cache this node's deck
+    const fresh = LS.get(cacheKey, null) || { roadmap: exState.roadmap, completedNodes: exState.completedNodes, nodeDecks: {} };
+    fresh.nodeDecks = fresh.nodeDecks || {};
+    fresh.nodeDecks[nodeId] = exercises;
+    LS.set(cacheKey, fresh);
+
     exState.exercises = exercises;
     exState.currentIdx = 0;
     exState.shownAnswer = false;
@@ -3160,25 +3378,131 @@ Instructions:
   } catch (e) {
     exArea.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--red);">
       <i class="fa-solid fa-exclamation-triangle" style="font-size:32px;display:block;margin-bottom:12px;"></i>
-      Failed: ${escHtml(e.message)}
+      Failed to generate problems: ${escHtml(e.message)}
       <br><br>
-      <button onclick="generateExercises()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;">Retry</button>
+      <button onclick="generateNodeExercises('${nodeId}')" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;">Retry</button>
+      &nbsp;
+      <button onclick="renderExerciseRoadmap()" class="ex-restart-secondary" style="margin-top:0;">Back to Roadmap</button>
     </div>`;
+  }
+}
+
+async function generateMoreExercises() {
+  const active = getActiveRoadmap();
+  if (!active) return;
+  if (!exState.activeNodeId) return;
+  const proxyUrl = getProxyUrl();
+  if (!proxyUrl) { openAiConfig(); return; }
+
+  const node = exState.roadmap.find(n => n.id === exState.activeNodeId);
+  if (!node) return;
+
+  const moreBtn = document.getElementById('ex-more-btn');
+  if (moreBtn) {
+    moreBtn.disabled = true;
+    moreBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…';
+  }
+
+  const nodeList = active.nodes.map(n => `- ${n.name}: ${n.description}`).join('\n');
+  const existingSummary = exState.exercises.map((e, i) => `P${i + 1}: ${e.q}`).join('\n');
+
+  try {
+    const prompt = `Create 3 MORE practical practice problems for the skill "${node.name}" in the subject "${active.subject}".
+
+What this skill is: ${node.description}
+
+Course theory topics:
+${nodeList}
+
+Existing problems already created for this skill (make NEW variations with different numbers/types, do NOT duplicate these):
+${existingSummary}
+
+Instructions:
+- Create 3 NEW problems of the SAME base skill, different variations from the existing ones
+- Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
+- Return ONLY the JSON array, no other text.`;
+
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Proxy-Token': getProxyToken() },
+      body: JSON.stringify({
+        model: 'deepseek-v4-pro',
+        max_tokens: 1200,
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'You create practical practice problems for self-study. Respond with valid JSON only.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    const text = json.choices?.[0]?.message?.content || '';
+    let newExercises;
+    try {
+      newExercises = JSON.parse(text);
+    } catch {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) newExercises = JSON.parse(match[0]);
+      else throw new Error('Could not parse new problems');
+    }
+
+    if (!Array.isArray(newExercises) || newExercises.length === 0) throw new Error('No new problems generated');
+
+    // Append to the current deck
+    exState.exercises = exState.exercises.concat(newExercises);
+
+    // Update cache
+    const cacheKey = getExCacheKey(active.id);
+    const fresh = LS.get(cacheKey, null) || { roadmap: exState.roadmap, completedNodes: exState.completedNodes, nodeDecks: {} };
+    fresh.nodeDecks = fresh.nodeDecks || {};
+    fresh.nodeDecks[exState.activeNodeId] = exState.exercises;
+    LS.set(cacheKey, fresh);
+
+    renderExerciseCard();
+
+  } catch (e) {
+    if (moreBtn) {
+      moreBtn.disabled = false;
+      moreBtn.innerHTML = '<i class="fa-solid fa-plus"></i> More Problems';
+    }
+    alert('Failed to generate more problems: ' + e.message);
   }
 }
 
 function renderExerciseCard() {
   const { exercises, currentIdx, shownAnswer, shownHint, done, review } = exState;
   const total = exercises.length;
+  const node = exState.roadmap.find(n => n.id === exState.activeNodeId);
+  const nodeName = node ? node.name : 'Practice';
 
   if (currentIdx >= total) {
+    // Mark this skill node as practiced (once)
+    const active = getActiveRoadmap();
+    if (active && exState.activeNodeId) {
+      if (!exState.completedNodes.includes(exState.activeNodeId)) {
+        exState.completedNodes.push(exState.activeNodeId);
+        const cacheKey = getExCacheKey(active.id);
+        const fresh = LS.get(cacheKey, null);
+        if (fresh) {
+          fresh.completedNodes = exState.completedNodes;
+          LS.set(cacheKey, fresh);
+        }
+      }
+    }
     exArea.innerHTML = `
       <div class="ex-done">
         <i class="fa-solid fa-trophy"></i>
-        <div class="fc-done-score">Exercises Complete!</div>
+        <div class="fc-done-score">${escHtml(nodeName)} — Complete!</div>
         <div style="font-size:28px;font-weight:800;color:var(--green);margin:8px 0;">${done}/${total}</div>
         <div style="color:var(--text-muted);">${review} to review</div>
         <button class="ex-restart" onclick="restartExercises()">Practice Again</button>
+        <div class="ex-secondary-actions" style="margin-top:12px;">
+          <button class="ex-restart-secondary" id="ex-more-btn" onclick="generateMoreExercises()"><i class="fa-solid fa-plus"></i> More Problems</button>
+          <button class="ex-restart-secondary" onclick="renderExerciseRoadmap()"><i class="fa-solid fa-map"></i> Roadmap</button>
+        </div>
       </div>`;
     return;
   }
@@ -3187,7 +3511,7 @@ function renderExerciseCard() {
   const diffClass = ex.difficulty === 'hard' ? 'hard' : ex.difficulty === 'medium' ? 'medium' : 'easy';
 
   let html = '';
-  html += `<div class="ex-progress">Exercise ${currentIdx + 1} of ${total} — <span style="color:var(--green);">✓ ${done}</span> <span style="color:var(--red);">↻ ${review}</span></div>`;
+  html += `<div class="ex-progress">${escHtml(nodeName)} — ${currentIdx + 1} of ${total} <span style="color:var(--green);">✓ ${done}</span> <span style="color:var(--red);">↻ ${review}</span></div>`;
 
   html += `<div class="ex-card">`;
   html += `<div class="ex-card-header">`;
@@ -3209,6 +3533,11 @@ function renderExerciseCard() {
     html += `<button class="ex-btn-next" onclick="nextExercise()">✓ Got It</button>`;
   }
   html += `</div></div>`;
+
+  html += `<div class="ex-secondary-actions">
+    <button class="ex-restart-secondary" id="ex-more-btn" onclick="generateMoreExercises()"><i class="fa-solid fa-plus"></i> More Problems</button>
+    <button class="ex-restart-secondary" onclick="renderExerciseRoadmap()"><i class="fa-solid fa-map"></i> Roadmap</button>
+  </div>`;
 
   exArea.innerHTML = html;
 
@@ -3269,7 +3598,7 @@ exOpenBtn.addEventListener('click', openExercises);
 exBackBtn.addEventListener('click', closeExercises);
 
 // Expose for inline onclick
-window.ROADMAP = { ...window.ROADMAP, generateExercises, showExHint, showExAnswer, nextExercise, reviewExercise, restartExercises };
+window.ROADMAP = { ...window.ROADMAP, generateExercises, generateNodeExercises, generateMoreExercises, renderExerciseRoadmap, showExHint, showExAnswer, nextExercise, reviewExercise, restartExercises };
 
 // Add exercises panel to popstate cleanup
 const _origPopstate2 = window.onpopstate;
