@@ -3280,24 +3280,18 @@ async function generateExercises() {
   try {
     const prompt = `Create a practical exercise roadmap for the subject "${active.subject}".
 
-The course covers these theory topics:
-${nodeList}
-
-A practical exercise roadmap breaks the subject into hands-on SKILLS that a student must practice repeatedly, ordered from foundational to advanced. Later skills SHOULD combine earlier base skills.
-
-Example for electronics:
-1. "Ohm's Law" (foundational) — practice finding V, I, or R given two values, with multiple different problems
-2. "Series & Parallel Resistance" (foundational) — combine resistors and find total resistance
-3. "Ohm's Law in Circuits" (intermediate) — apply Ohm's law to multi-resistor circuits (combines skill 1 + 2)
-4. "Kirchhoff's Laws" (advanced) — solve loops and nodes using KVL/KCL (combines skills 1-3)
-
 Instructions:
-- Create 6-10 skill nodes
-- Each node: { "id": "ex1", "name": "Skill Name (2-5 words)", "description": "One sentence about what the student practices, and which base skills it combines", "level": "foundational|intermediate|advanced" }
-- Order them bottom-up so advanced nodes reference and combine the foundational ones
-- CRITICAL JSON RULES: Escape ALL double-quotes inside string values as \\". Never use backslash sequences like \\frac, \\sqrt, \\sum, \\int, \\alpha, \\beta or any other LaTeX commands anywhere in the JSON. Describe formulas in plain text like "y = mx + b" or "F = ma". Use forward slashes instead of backslashes if needed.
-- Return ONLY valid JSON (no markdown, no extra text). Format:
-{ "nodes": [ { "id": "ex1", "name": "...", "description": "...", "level": "foundational" }, ... ] }`;
+1. Break this subject into 6-10 hands-on practice skills
+2. Order them from foundational/basic (bottom) to advanced (top)
+3. Group them into 3 levels: "foundational", "intermediate", "advanced"
+4. Later skills should build on and combine earlier ones
+
+Return ONLY valid JSON, no other text. Format:
+{
+  "nodes": [
+    { "id": "ex1", "name": "Skill Name", "description": "One sentence description", "level": "foundational" }
+  ]
+}`;
 
     const res = await fetch(proxyUrl, {
       method: 'POST',
@@ -3458,28 +3452,14 @@ async function generateNodeExercises(nodeId) {
 
   exArea.innerHTML = `<div class="loading-lesson"><i class="fa-solid fa-spinner"></i><div>Generating practice problems for "${escHtml(node.name)}"…</div></div>`;
 
-  // Context: course topics + base skills this node builds on
-  const nodeList = active.nodes.map(n => `- ${n.name}: ${n.description}`).join('\n');
-  const baseSkills = exState.roadmap
-    .filter(n => n.id === nodeId || n.level === 'foundational')
-    .map(n => `- ${n.name}: ${n.description}`)
-    .join('\n');
+    try {
+      const prompt = `Create 3 practice problems for the skill "${node.name}" in "${active.subject}".
 
-  try {
-    const prompt = `Create 3 practical practice problems for the skill "${node.name}" in the subject "${active.subject}".
-
-What this skill is: ${node.description}
-
-Course theory topics:
-${nodeList}
-
-Base skills available (this skill builds on them):
-${baseSkills}
+Skill description: ${node.description}
 
 Instructions:
-- Create 3 problems of the SAME base skill, each a DIFFERENT variation: different values, different unknowns (e.g. for Ohm's law: one asks for current, one for resistance, one for voltage)
-- Make them progressively harder, but all focused on this one skill
-- IMPORTANT: Escape ALL quotes and backslashes inside JSON string values (e.g. \\ for backslash). Do NOT use LaTeX commands like \\frac inside the JSON — use plain text like "V = I * R".
+- Create 3 problems with different variations (different values, different unknowns)
+- Make them progressively harder
 - Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
 - Return ONLY the JSON array, no other text.`;
 
@@ -3558,19 +3538,15 @@ async function generateMoreExercises() {
   const existingSummary = exState.exercises.map((e, i) => `P${i + 1}: ${e.q}`).join('\n');
 
   try {
-    const prompt = `Create 3 MORE practical practice problems for the skill "${node.name}" in the subject "${active.subject}".
+    const prompt = `Create 3 MORE practice problems for the skill "${node.name}" in "${active.subject}".
 
-What this skill is: ${node.description}
+Skill description: ${node.description}
 
-Course theory topics:
-${nodeList}
-
-Existing problems already created for this skill (make NEW variations with different numbers/types, do NOT duplicate these):
+Existing problems (make NEW variations, do NOT duplicate):
 ${existingSummary}
 
 Instructions:
-- Create 3 NEW problems of the SAME base skill, different variations from the existing ones
-- IMPORTANT: Escape ALL quotes and backslashes inside JSON string values (e.g. \\ for backslash). Do NOT use LaTeX commands like \\frac inside the JSON — use plain text like "V = I * R".
+- Create 3 NEW problems with different variations
 - Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
 - Return ONLY the JSON array, no other text.`;
 
