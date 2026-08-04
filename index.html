@@ -1467,6 +1467,91 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'"');
 }
 
+/**
+ * Robust AI JSON parsing.
+ * DeepSeek sometimes returns invalid JSON (unescaped quotes, raw LaTeX
+ * backslashes, literal newlines inside strings, trailing commas, or
+ * markdown code fences). This tries several strategies before failing.
+ */
+function extractAIJSON(text) {
+  let s = String(text || '').trim();
+
+  // Strip markdown code fences
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/g, '');
+
+  // Strategy 1: direct parse
+  try { return unwrapAIJSON(JSON.parse(s)); } catch (e) {}
+
+  // Strategy 2: extract the outermost {...} or [...] block and parse it
+  const objMatch = s.match(/\{[\s\S]*\}/);
+  const arrMatch = s.match(/\[[\s\S]*\]/);
+  const candidate = objMatch ? objMatch[0] : arrMatch ? arrMatch[0] : s;
+  try { return unwrapAIJSON(JSON.parse(candidate)); } catch (e) {}
+
+  // Strategy 3: repair common AI JSON issues, then parse
+  try { return unwrapAIJSON(JSON.parse(repairAIJSON(s))); } catch (e) {}
+
+  throw new Error('Could not parse AI response as JSON');
+}
+
+// If the model wrapped the payload in an object (e.g. {"exercises": [...]}),
+// unwrap the actual array/object we care about.
+function unwrapAIJSON(val) {
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    for (const k of ['exercises', 'problems', 'cards', 'nodes', 'data', 'items', 'result']) {
+      if (Array.isArray(val[k])) return val[k];
+    }
+  }
+  return val;
+}
+
+// Repairs the most common AI JSON mistakes:
+//  - unescaped quotes inside string values
+//  - stray backslashes (e.g. LaTeX \frac) inside strings
+//  - literal newlines inside string values
+//  - trailing commas
+function repairAIJSON(input) {
+  let s = String(input || '');
+
+  // Remove trailing commas before } or ]
+  s = s.replace(/,\s*([\]}])/g, '$1');
+
+  let out = '';
+  let inStr = false;
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (inStr) {
+      if (c === '\\') {
+        const n = s[i + 1];
+        if (n === '"' || n === '\\' || n === '/' || n === 'b' || n === 'f' || n === 'n' || n === 'r' || n === 't' || n === 'u') {
+          out += c + n;
+          i += 2;
+        } else {
+          // Lone backslash — escape it
+          out += '\\\\';
+          i++;
+        }
+      } else if (c === '"') {
+        // Unescaped quote inside a string — escape it
+        out += '\\"';
+        i++;
+      } else if (c === '\n' || c === '\r') {
+        out += '\\n';
+        i++;
+      } else {
+        out += c;
+        i++;
+      }
+    } else {
+      if (c === '"') { inStr = true; }
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
 // ── AI Proxy helpers ──
 function getProxyUrl() { return localStorage.getItem('rm_proxy_url') || ''; }
 function setProxyUrl(u) { localStorage.setItem('rm_proxy_url', u); }
@@ -3146,6 +3231,7 @@ Instructions:
 - Create 6-10 skill nodes
 - Each node: { "id": "ex1", "name": "Skill Name (2-5 words)", "description": "One sentence about what the student practices, and which base skills it combines", "level": "foundational|intermediate|advanced" }
 - Order them bottom-up so advanced nodes reference and combine the foundational ones
+- IMPORTANT: Escape ALL quotes and backslashes inside JSON string values. Do NOT use LaTeX commands (like \frac) inside the JSON — describe formulas in plain text instead.
 - Return ONLY valid JSON, no other text. Format:
 { "nodes": [ { "id": "ex1", "name": "...", "description": "...", "level": "foundational" }, ... ] }`;
 
@@ -3167,14 +3253,7 @@ Instructions:
 
     const json = await res.json();
     const text = json.choices?.[0]?.message?.content || '';
-    let roadmapData;
-    try {
-      roadmapData = JSON.parse(text);
-    } catch {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) roadmapData = JSON.parse(match[0]);
-      else throw new Error('Could not parse exercise roadmap');
-    }
+    let roadmapData = extractAIJSON(text);
 
     if (!roadmapData.nodes || !Array.isArray(roadmapData.nodes) || roadmapData.nodes.length === 0) {
       throw new Error('AI returned no exercise nodes');
@@ -3329,6 +3408,7 @@ ${baseSkills}
 Instructions:
 - Create 3 problems of the SAME base skill, each a DIFFERENT variation: different values, different unknowns (e.g. for Ohm's law: one asks for current, one for resistance, one for voltage)
 - Make them progressively harder, but all focused on this one skill
+- IMPORTANT: Escape ALL quotes and backslashes inside JSON string values (e.g. \\ for backslash). Do NOT use LaTeX commands like \\frac inside the JSON — use plain text like "V = I * R".
 - Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
 - Return ONLY the JSON array, no other text.`;
 
@@ -3350,14 +3430,7 @@ Instructions:
 
     const json = await res.json();
     const text = json.choices?.[0]?.message?.content || '';
-    let exercises;
-    try {
-      exercises = JSON.parse(text);
-    } catch {
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) exercises = JSON.parse(match[0]);
-      else throw new Error('Could not parse problems');
-    }
+    let exercises = extractAIJSON(text);
 
     if (!Array.isArray(exercises) || exercises.length === 0) throw new Error('No problems generated');
 
@@ -3419,6 +3492,7 @@ ${existingSummary}
 
 Instructions:
 - Create 3 NEW problems of the SAME base skill, different variations from the existing ones
+- IMPORTANT: Escape ALL quotes and backslashes inside JSON string values (e.g. \\ for backslash). Do NOT use LaTeX commands like \\frac inside the JSON — use plain text like "V = I * R".
 - Format as a JSON array: [{"q": "Problem statement", "hint": "Short hint", "answer": "Detailed solution", "difficulty": "easy|medium|hard"}, ...]
 - Return ONLY the JSON array, no other text.`;
 
@@ -3440,14 +3514,7 @@ Instructions:
 
     const json = await res.json();
     const text = json.choices?.[0]?.message?.content || '';
-    let newExercises;
-    try {
-      newExercises = JSON.parse(text);
-    } catch {
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) newExercises = JSON.parse(match[0]);
-      else throw new Error('Could not parse new problems');
-    }
+    let newExercises = extractAIJSON(text);
 
     if (!Array.isArray(newExercises) || newExercises.length === 0) throw new Error('No new problems generated');
 
