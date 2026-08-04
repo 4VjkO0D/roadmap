@@ -1491,6 +1491,67 @@ function extractAIJSON(text) {
   // Strategy 3: repair common AI JSON issues, then parse
   try { return unwrapAIJSON(JSON.parse(repairAIJSON(s))); } catch (e) {}
 
+  // Strategy 4: brace-counted extraction — find the first { or [ and
+  // count braces to extract exactly the matching JSON block. This
+  // handles nested objects, arrays, and ignores trailing text.
+  try {
+    const firstBrace = s.indexOf('{');
+    const firstBracket = s.indexOf('[');
+    let startIdx = -1;
+    let isArray = false;
+    if (firstBrace === -1 && firstBracket === -1) {
+      // neither found
+    } else if (firstBrace === -1) {
+      startIdx = firstBracket; isArray = true;
+    } else if (firstBracket === -1) {
+      startIdx = firstBrace;
+    } else {
+      startIdx = Math.min(firstBrace, firstBracket);
+      isArray = s[startIdx] === '[';
+    }
+
+    if (startIdx !== -1) {
+      const open = isArray ? '[' : '{';
+      const close = isArray ? ']' : '}';
+      let depth = 0;
+      let inStr = false;
+      let endIdx = -1;
+      for (let i = startIdx; i < s.length; i++) {
+        const ch = s[i];
+        if (ch === '\\' && inStr) { i++; continue; }
+        if (ch === '"') { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (ch === open) { depth++; }
+        else if (ch === close) { depth--; }
+        if (depth === 0) { endIdx = i + 1; break; }
+      }
+      if (endIdx !== -1) {
+        const extracted = s.substring(startIdx, endIdx);
+        try { return unwrapAIJSON(JSON.parse(extracted)); } catch (e) {}
+        try { return unwrapAIJSON(JSON.parse(repairAIJSON(extracted))); } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  // Strategy 5: aggressive fallback — strip any remaining non-JSON
+  // characters and try one last time
+  try {
+    let cleaned = s;
+    // Remove any text before the first { or [
+    const firstStructural = Math.min(
+      cleaned.indexOf('{') === -1 ? Infinity : cleaned.indexOf('{'),
+      cleaned.indexOf('[') === -1 ? Infinity : cleaned.indexOf('[')
+    );
+    if (firstStructural !== Infinity && firstStructural > 0) {
+      cleaned = cleaned.substring(firstStructural);
+    }
+    cleaned = repairAIJSON(cleaned);
+    try { return unwrapAIJSON(JSON.parse(cleaned)); } catch (e) {}
+  } catch (e) {}
+
+  // Log the raw AI response so the user/developer can debug
+  console.error('extractAIJSON failed. Raw AI response (first 2000 chars):', s.substring(0, 2000));
+
   throw new Error('Could not parse AI response as JSON');
 }
 
@@ -1524,11 +1585,14 @@ function repairAIJSON(input) {
     if (inStr) {
       if (c === '\\') {
         const n = s[i + 1];
-        if (n === '"' || n === '\\' || n === '/' || n === 'b' || n === 'f' || n === 'n' || n === 'r' || n === 't' || n === 'u') {
+        // Only preserve truly valid JSON escapes. Treat LaTeX commands
+        // like \frac, \mathbf, \begin, \vec, etc. as lone backslashes
+        // that need escaping (\\ -> \\\\) so JSON.parse can recover them.
+        if (n === '"' || n === '\\' || n === '/' || n === 'n' || n === 'r' || n === 't' || n === 'u') {
           out += c + n;
           i += 2;
         } else {
-          // Lone backslash — escape it
+          // Lone backslash (unrecognized escape or LaTeX command) — escape it
           out += '\\\\';
           i++;
         }
@@ -3231,8 +3295,8 @@ Instructions:
 - Create 6-10 skill nodes
 - Each node: { "id": "ex1", "name": "Skill Name (2-5 words)", "description": "One sentence about what the student practices, and which base skills it combines", "level": "foundational|intermediate|advanced" }
 - Order them bottom-up so advanced nodes reference and combine the foundational ones
-- IMPORTANT: Escape ALL quotes and backslashes inside JSON string values. Do NOT use LaTeX commands (like \frac) inside the JSON — describe formulas in plain text instead.
-- Return ONLY valid JSON, no other text. Format:
+- CRITICAL JSON RULES: Escape ALL double-quotes inside string values as \\". Never use backslash sequences like \\frac, \\sqrt, \\sum, \\int, \\alpha, \\beta or any other LaTeX commands anywhere in the JSON. Describe formulas in plain text like "y = mx + b" or "F = ma". Use forward slashes instead of backslashes if needed.
+- Return ONLY valid JSON (no markdown, no extra text). Format:
 { "nodes": [ { "id": "ex1", "name": "...", "description": "...", "level": "foundational" }, ... ] }`;
 
     const res = await fetch(proxyUrl, {
